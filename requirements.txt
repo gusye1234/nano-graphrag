@@ -1,0 +1,2 @@
+nest_asyncio
+openai
