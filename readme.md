@@ -1,15 +1,18 @@
 <div align="center">
   <h1>nano-GraphRAG</h1>
-  <p><strong>🌬️ A simple, easy-to-hack GraphRAG implementation</strong></p>
+  <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
     <p>
     <img src="https://img.shields.io/badge/python->=3.9-blue">
   </p>
 </div>
 
-- [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is not very "easy" to read or hack. 
-- This project aims to provide a simple python implementation, while keeping all the functions.
-- `nano-graphrag` is about 1000-lines of python.
-- `nano-graphrag` performs [the same](#Benchmark) as the original implementation.
+
+
+😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is not very "easy" to read or hack.
+
+😊 This project aims to provide a simpler implementation, while retaining the core functionality.
+
+👌 `nano-graphrag` is about 1000-lines of python, but performs [the same](#Benchmark) as the original implementation.
 
 
 
@@ -47,7 +50,7 @@ from nano_graphrag import GraphRAG
 graph_func = GraphRAG()
 
 with open("./book.txt") as f
-	graph_func.insert(f.read())
+    graph_func.insert(f.read())
 
 print(graph_func.query("What are the top themes in this story?"))
 ```
