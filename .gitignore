@@ -6,7 +6,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.vscode
+.DS_Store
 # C extensions
 *.so
 

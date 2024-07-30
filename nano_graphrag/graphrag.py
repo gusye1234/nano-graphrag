@@ -1,8 +1,7 @@
-import asyncio
 from dataclasses import dataclass
+from .prompt import prompts
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete
 from ._utils import limit_async_func_call
-from .prompt import prompts
 
 
 @dataclass
