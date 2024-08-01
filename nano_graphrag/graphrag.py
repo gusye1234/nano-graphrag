@@ -19,7 +19,8 @@ class GraphRAG:
         default_factory=lambda: f"./nano_graphrag_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
     )
 
-    chunk_token_size: int = 1024
+    chunk_token_size: int = 1200
+    chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
 
     best_model_func: callable = gpt_4o_complete
@@ -59,9 +60,10 @@ class GraphRAG:
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
         new_docs = {
-            generate_id(prefix="doc-"): {"content": c} for c in string_or_strings
+            generate_id(prefix="doc-"): {"content": c.strip()}
+            for c in string_or_strings
         }
-        self.full_docs.update(new_docs)
+        self.full_docs.upsert(new_docs)
 
         inserting_chunks = {}
         for doc_key, doc in new_docs.items():
@@ -69,12 +71,16 @@ class GraphRAG:
                 generate_id(prefix="chunk-"): {**dp, "full_doc_id": doc_key}
                 for dp in chunking_by_token_size(
                     doc["content"],
+                    overlap_token_size=self.chunk_overlap_token_size,
                     max_token_size=self.chunk_token_size,
                     tiktoken_model=self.tiktoken_model_name,
                 )
             }
             inserting_chunks.update(chunks)
-        self.text_chunks.update(chunks)
+        self.text_chunks.upsert(chunks)
+        logger.info(
+            f"Process {len(new_docs)} new docs, add {len(inserting_chunks)} new chunks"
+        )
 
     def insert(self, string_or_strings):
         return asyncio.run(self.ainsert(string_or_strings))

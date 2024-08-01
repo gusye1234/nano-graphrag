@@ -2,7 +2,8 @@ import os
 import shutil
 from nano_graphrag import GraphRAG
 
-FAKE_TEXT = " ".join([str(i) for i in range(10000)])
+with open("./tests/mock_data.txt", encoding="utf-8-sig") as f:
+    FAKE_TEXT = f.read()
 WORKING_DIR = "./nano_graphrag_cache_TEST"
 
 if os.path.exists(WORKING_DIR):
