@@ -13,9 +13,9 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is not very "easy" to read or hack.
 
-😊 This project aims to provide a simpler implementation, while retaining the core functionality.
+😊 This project aims to provide a simple implementation with few dependencies, while retaining the core functionality.
 
-👌 `nano-graphrag` is about 1000-lines of python, but performs [the same](#Benchmark) as the original implementation.
+👌 `nano-graphrag` is about 500-lines of code (excluding `tests` and prompts)
 
 
 
@@ -50,7 +50,7 @@ Use the below python snippet:
 ```python
 from nano_graphrag import GraphRAG
 
-graph_func = GraphRAG()
+graph_func = GraphRAG(working_dir="./dickens")
 
 with open("./book.txt") as f
     graph_func.insert(f.read())
@@ -58,13 +58,9 @@ with open("./book.txt") as f
 print(graph_func.query("What are the top themes in this story?"))
 ```
 
-Save the graph for the next time:
+Next time you initialize a `GraphRAG` from the same `working_dir`, it will reload all the contexts automatically.
 
-```python
-graph_func.save("path/to/dir")
-# -------- next time ---------
-graph_func = GraphRAG.from_dir("path/to/dir")
-```
+### Async Support
 
 For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
 

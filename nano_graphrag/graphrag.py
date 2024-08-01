@@ -78,14 +78,3 @@ class GraphRAG:
 
     def insert(self, string_or_strings):
         return asyncio.run(self.ainsert(string_or_strings))
-
-
-if __name__ == "__main__":
-    a = GraphRAG()
-
-    async def main():
-        tasks = [a.aquery("What is the capital of China?") for _ in range(10)]
-        results = await asyncio.gather(*tasks)
-        print(results)
-
-    asyncio.run(main())
