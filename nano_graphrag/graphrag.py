@@ -24,19 +24,19 @@ class GraphRAG:
 
     best_model_func: callable = gpt_4o_complete
     best_model_max_async: int = 8
-
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_async: int = 8
+
     key_string_value_json_storage_cls: Type[BaseStorage] = JsonKVStorage
 
     def __post_init__(self):
         self.best_model_func = limit_async_func_call(
             max_size=self.best_model_max_async
         )(self.best_model_func)
-
         self.cheap_model_func = limit_async_func_call(
             max_size=self.cheap_model_max_async
         )(self.cheap_model_func)
+
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
             os.makedirs(self.working_dir)

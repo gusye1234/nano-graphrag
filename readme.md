@@ -2,12 +2,14 @@
   <h1>nano-GraphRAG</h1>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
   <p>
+    <img src="https://img.shields.io/badge/in-developing-red">
     <img src="https://img.shields.io/badge/python->=3.9-blue">
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
   </p>
 </div>
+
 
 
 
@@ -37,7 +39,7 @@ pip install -e .
 
 
 
-## Quick Start
+## Quick Start - Not yet
 
 download a copy of A Christmas Carol by Charles Dickens:
 
@@ -72,6 +74,6 @@ await graph_func.aquery(...)
 
 
 
-## Benchmark
+## Benchmark - Not yet
 
-TODO
+...
