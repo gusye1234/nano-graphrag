@@ -1,6 +1,6 @@
 from openai import AsyncOpenAI
 from functools import partial
-from ._utils import logger, limit_async_func_call
+from ._utils import encode_string_by_tiktoken, decode_tokens_by_tiktoken
 
 openai_async_client = AsyncOpenAI()
 
@@ -26,3 +26,18 @@ async def gpt_4o_mini_complete(prompt, system_prompt=None, **kwargs) -> str:
     return await openai_complete(
         "gpt-4o-mini", prompt, system_prompt=system_prompt, **kwargs
     )
+
+
+def chunking_by_token_size(content: str, max_token_size=1024, tiktoken_model="gpt-4o"):
+    tokens = encode_string_by_tiktoken(content, model_name=tiktoken_model)
+    results = []
+    for start in range(0, len(tokens), max_token_size):
+        results.append(
+            {
+                "tokens": min(max_token_size, len(tokens) - start),
+                "content": decode_tokens_by_tiktoken(
+                    tokens[start : start + max_token_size], model_name=tiktoken_model
+                ),
+            }
+        )
+    return results
