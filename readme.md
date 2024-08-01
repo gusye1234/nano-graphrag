@@ -44,7 +44,7 @@ pip install -e .
 download a copy of A Christmas Carol by Charles Dickens:
 
 ```shell
-curl https://www.gutenberg.org/cache/epub/24022/pg24022.txt > ./book.txt
+curl https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/tests/mock_data.txt > ./book.txt
 ```
 
 Use the below python snippet:
