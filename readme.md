@@ -15,9 +15,9 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is not very "easy" to read or hack.
 
-😊 This project aims to provide a simple implementation with few dependencies, while retaining the core functionality.
+😊 This project provides a simple GraphRAG implementation with minimal dependencies.
 
-👌 `nano-graphrag` is about 500-lines of code (excluding `tests` and prompts)
+👌 `nano-graphrag` is about 500 lines of code, excluding `tests` and prompts.
 
 
 
