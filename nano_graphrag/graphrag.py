@@ -4,13 +4,15 @@ from typing import Type
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from .prompt import prompts
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, chunking_by_token_size
+from ._llm import gpt_4o_complete, gpt_4o_mini_complete
 from ._utils import (
     limit_async_func_call,
     generate_id,
+    EmbeddingFunc,
     logger,
 )
-from .storage import JsonKVStorage, BaseStorage
+from .storage import JsonKVStorage, BaseKVStorage, BaseVectorStorage, MilvusLiteStorge
+from ._ops import chunking_by_token_size, openai_embedding
 
 
 @dataclass
@@ -23,14 +25,22 @@ class GraphRAG:
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
 
+    embedding_func: EmbeddingFunc = openai_embedding
+    embedding_batch_num: int = 16
+    embedding_func_max_async: int = 8
+
     best_model_func: callable = gpt_4o_complete
     best_model_max_async: int = 8
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_async: int = 8
 
-    key_string_value_json_storage_cls: Type[BaseStorage] = JsonKVStorage
+    key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
+    vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
 
     def __post_init__(self):
+        self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
+            self.embedding_func
+        )
         self.best_model_func = limit_async_func_call(
             max_size=self.best_model_max_async
         )(self.best_model_func)
@@ -48,6 +58,11 @@ class GraphRAG:
         self.text_chunks = self.key_string_value_json_storage_cls(
             namespace="text_chunks", global_config=asdict(self)
         )
+        self.text_chunks_vdb = self.vector_db_storage_cls(
+            namespace="text_chunks",
+            global_config=asdict(self),
+            embedding_func=self.embedding_func,
+        )
         logger.info(f"GraphRAG init done with param: {asdict(self)}")
 
     async def aquery(self, query: str):
@@ -63,7 +78,6 @@ class GraphRAG:
             generate_id(prefix="doc-"): {"content": c.strip()}
             for c in string_or_strings
         }
-        self.full_docs.upsert(new_docs)
 
         inserting_chunks = {}
         for doc_key, doc in new_docs.items():
@@ -77,7 +91,11 @@ class GraphRAG:
                 )
             }
             inserting_chunks.update(chunks)
-        self.text_chunks.upsert(chunks)
+        # upsert to vector db
+        await self.text_chunks_vdb.upsert(inserting_chunks)
+        # upsert to KV
+        await self.full_docs.upsert(new_docs)
+        await self.text_chunks.upsert(chunks)
         logger.info(
             f"Process {len(new_docs)} new docs, add {len(inserting_chunks)} new chunks"
         )

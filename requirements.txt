@@ -2,3 +2,4 @@ nest_asyncio
 openai
 tiktoken
 nanoid
+pymilvus
