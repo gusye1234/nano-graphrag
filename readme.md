@@ -1,6 +1,7 @@
 <div align="center">
   <h1>nano-GraphRAG</h1>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
+   <p><strong>⚠️ It's still under development and not ready yet ⚠️</strong></p>
   <p>
     <img src="https://img.shields.io/badge/in-developing-red">
     <img src="https://img.shields.io/badge/python->=3.9-blue">
@@ -12,12 +13,13 @@
 
 
 
-
-😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is not very "easy" to read or hack.
+😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult to read or hack.
 
 😊 This project provides a simple GraphRAG implementation with minimal dependencies.
 
-👌 `nano-graphrag` is about 500 lines of code, excluding `tests` and prompts.
+🎁 `nano-graphrag` is about 700 lines of code, excluding `tests` and prompts. 
+
+👌 Small yet scalable. Fully asynchronous. You can switch any component you want, nothing is fixed!
 
 
 
@@ -71,6 +73,22 @@ await graph_func.ainsert(...)
 await graph_func.aquery(...)
 ...
 ```
+
+
+
+## Advanced:  Storage
+
+You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
+
+- `_base.BaseKVStorage` for storing key-json pairs of data. 
+  - By default we use disk file storage as the backend. 
+  -  `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
+- `_base.BaseVectorStorage` for indexing embeddings. 
+  - By default we use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend.
+  - `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
+- `_base.BaseGraphStorage` for storing knowledge graph. 
+  - By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
+  - `GraphRAG(.., graph_storage_cls=YOURS,...)`
 
 
 
