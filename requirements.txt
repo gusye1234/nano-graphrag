@@ -1,5 +1,6 @@
-nest_asyncio
 openai
-tiktoken
 nanoid
+tiktoken
 pymilvus
+networkx
+nest_asyncio

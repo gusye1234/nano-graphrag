@@ -1,6 +1,6 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
-
+run_test.py
 nano_graphrag_cache*/
 tests/original_workflow.txt
 ### Python ###

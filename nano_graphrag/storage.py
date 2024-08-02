@@ -1,36 +1,12 @@
 import os
 import asyncio
 import numpy as np
-from dataclasses import dataclass, field
+from typing import Union
+from dataclasses import dataclass
 from pymilvus import MilvusClient
-from ._utils import load_json, write_json, EmbeddingFunc
-
-
-@dataclass
-class BaseVectorStorage:
-    namespace: str
-    global_config: dict
-    embedding_func: EmbeddingFunc
-    meta_fields: set = field(default_factory=set)
-
-    async def query(self, query):
-        raise NotImplementedError
-
-    async def upsert(self, data: dict[str, dict]):
-        """Use 'content' from value for embedding, use key as id"""
-        raise NotImplementedError
-
-
-@dataclass
-class BaseKVStorage:
-    namespace: str
-    global_config: dict
-
-    async def get_by_id(self, id):
-        raise NotImplementedError
-
-    async def upsert(self, data: dict[str, dict]):
-        raise NotImplementedError
+import networkx as nx
+from ._utils import load_json, write_json
+from ._base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
 
 
 @dataclass
@@ -45,6 +21,8 @@ class JsonKVStorage(BaseKVStorage):
 
     async def upsert(self, data: dict[str, dict]):
         self._data.update(data)
+
+    async def index_done_callback(self):
         write_json(self._data, self._file_name)
 
 
@@ -73,7 +51,7 @@ class MilvusLiteStorge(BaseVectorStorage):
             dimension=self.embedding_func.embedding_dim,
         )
 
-    async def upsert(self, data: dict[str, dict]):
+    async def insert(self, data: dict[str, dict]):
         list_data = [
             {
                 "id": k,
@@ -107,3 +85,49 @@ class MilvusLiteStorge(BaseVectorStorage):
             {**dp["entity"], "id": dp["id"], "distance": dp["distance"]}
             for dp in results[0]
         ]
+
+
+@dataclass
+class NetworkXStorage(BaseGraphStorage):
+    @staticmethod
+    def load_nx_graph(file_name) -> nx.Graph:
+        if os.path.exists(file_name):
+            return nx.read_graphml(file_name)
+        return None
+
+    @staticmethod
+    def write_nx_graph(graph: nx.Graph, file_name):
+        nx.write_graphml_xml(graph, file_name)
+
+    def __post_init__(self):
+        self._graphml_xml_file = os.path.join(
+            self.global_config["working_dir"], f"{self.namespace}_graphml.xml"
+        )
+        self._graph = (
+            NetworkXStorage.load_nx_graph(self._graphml_xml_file) or nx.Graph()
+        )
+
+    async def index_done_callback(self):
+        NetworkXStorage.write_nx_graph(self._graph, self._graphml_xml_file)
+
+    async def has_node(self, node_id: str) -> bool:
+        return self._graph.has_node(node_id)
+
+    async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
+        return self._graph.has_edge(source_node_id, target_node_id)
+
+    async def get_node(self, node_id: str) -> Union[dict, None]:
+        return self._graph.nodes.get(node_id)
+
+    async def get_edge(
+        self, source_node_id: str, target_node_id: str
+    ) -> Union[dict, None]:
+        return self._graph.edges.get((source_node_id, target_node_id))
+
+    async def upsert_node(self, node_id: str, node_data: dict[str, str]):
+        self._graph.add_node(node_id, **node_data)
+
+    async def upsert_edge(
+        self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
+    ):
+        self._graph.add_edge(source_node_id, target_node_id, **edge_data)

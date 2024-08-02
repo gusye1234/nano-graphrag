@@ -1,7 +1,6 @@
-prompts = {}
+PROMPTS = {}
 
-
-prompts[
+PROMPTS[
     "claim_extraction"
 ] = """-Target activity-
 You are an intelligent assistant that helps a human analyst to analyze claims against certain entities presented in a text document.
@@ -55,7 +54,7 @@ Claim description: {claim_description}
 Text: {input_text}
 Output: """
 
-prompts[
+PROMPTS[
     "community_report"
 ] = """You are an AI assistant that helps a human analyst to perform general information discovery. Information discovery is the process of identifying and assessing relevant information associated with certain entities (e.g., organizations and individuals) within a network.
 
@@ -204,7 +203,7 @@ Do not include information where the supporting evidence for it is not provided.
 Output:
 """
 
-prompts[
+PROMPTS[
     "entity_extraction"
 ] = """-Goal-
 Given a text document that is potentially relevant to this activity and a list of entity types, identify all entities of those types from the text and all relationships among the identified entities.
@@ -307,7 +306,7 @@ Output:
 """
 
 
-prompts[
+PROMPTS[
     "summarize_descriptions"
 ] = """You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
 Given one or two entities, and a list of descriptions, all related to the same entity or group of entities.
@@ -322,3 +321,19 @@ Description List: {description_list}
 #######
 Output:
 """
+
+
+PROMPTS[
+    "entiti_continue_extraction"
+] = """MANY entities were missed in the last extraction.  Add them below using the same format:
+"""
+
+PROMPTS[
+    "entiti_if_loop_extraction"
+] = """It appears some entities may have still been missed.  Answer YES | NO if there are still entities that need to be added.
+"""
+
+PROMPTS["DEFAULT_ENTITY_TYPES"] = ["organization", "person", "geo", "event"]
+PROMPTS["DEFAULT_TUPLE_DELIMITER"] = "<|>"
+PROMPTS["DEFAULT_RECORD_DELIMITER"] = "##"
+PROMPTS["DEFAULT_COMPLETION_DELIMITER"] = "<|COMPLETE|>"

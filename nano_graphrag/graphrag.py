@@ -1,9 +1,8 @@
 import os
 import asyncio
-from typing import Type
+from typing import Type, cast
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
-from .prompt import prompts
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete
 from ._utils import (
     limit_async_func_call,
@@ -11,8 +10,9 @@ from ._utils import (
     EmbeddingFunc,
     logger,
 )
-from .storage import JsonKVStorage, BaseKVStorage, BaseVectorStorage, MilvusLiteStorge
-from ._ops import chunking_by_token_size, openai_embedding
+from ._base import BaseGraphStorage, BaseVectorStorage, BaseKVStorage, StorageNameSpace
+from .storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
+from ._op import chunking_by_token_size, openai_embedding, extract_entities
 
 
 @dataclass
@@ -21,21 +21,29 @@ class GraphRAG:
         default_factory=lambda: f"./nano_graphrag_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
     )
 
+    # text chunking
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
 
+    # entity extraction
+    entity_extract_max_gleaning: int = 1
+
+    # embedding
     embedding_func: EmbeddingFunc = openai_embedding
     embedding_batch_num: int = 16
     embedding_func_max_async: int = 8
 
+    # LLM
     best_model_func: callable = gpt_4o_complete
     best_model_max_async: int = 8
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_async: int = 8
 
+    # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
+    graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
 
     def __post_init__(self):
         self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
@@ -62,6 +70,9 @@ class GraphRAG:
             namespace="text_chunks",
             global_config=asdict(self),
             embedding_func=self.embedding_func,
+        )
+        self.chunk_entity_relation_graph = self.graph_storage_cls(
+            namespace="chunk_entity_relation", global_config=asdict(self)
         )
         logger.info(f"GraphRAG init done with param: {asdict(self)}")
 
@@ -91,11 +102,28 @@ class GraphRAG:
                 )
             }
             inserting_chunks.update(chunks)
+
+        await extract_entities(
+            inserting_chunks,
+            knwoledge_graph_inst=self.chunk_entity_relation_graph,
+            use_llm_func=self.best_model_func,
+            entity_extract_max_gleaning=self.entity_extract_max_gleaning,
+        )
+
         # upsert to vector db
-        await self.text_chunks_vdb.upsert(inserting_chunks)
+        # await self.text_chunks_vdb.insert(inserting_chunks)
         # upsert to KV
         await self.full_docs.upsert(new_docs)
         await self.text_chunks.upsert(chunks)
+
+        for storage_inst in [
+            self.full_docs,
+            self.text_chunks,
+            self.text_chunks_vdb,
+            self.chunk_entity_relation_graph,
+        ]:
+            await cast(StorageNameSpace, storage_inst).index_done_callback()
+
         logger.info(
             f"Process {len(new_docs)} new docs, add {len(inserting_chunks)} new chunks"
         )

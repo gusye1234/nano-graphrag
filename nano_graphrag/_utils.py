@@ -1,11 +1,13 @@
 import os
+import re
+import html
 import json
 import logging
-import inspect
 import asyncio
 import nest_asyncio
 import tiktoken
 import nanoid
+from typing import Any
 from functools import wraps
 from dataclasses import dataclass
 import numpy as np
@@ -47,6 +49,32 @@ def load_json(file_name):
         return None
     with open(file_name) as f:
         return json.load(f)
+
+
+# it's dirty to type, so it's a good way to have fun
+def pack_user_ass_to_openai_messages(*args: str):
+    roles = ["user", "assistant"]
+    return [
+        {"role": roles[i % 2], "content": content} for i, content in enumerate(args)
+    ]
+
+
+def is_float_regex(value):
+    return bool(re.match(r"^[-+]?[0-9]*\.?[0-9]+$", value))
+
+
+# -----------------------------------------------------------------------------------
+# Refer the utils functions of the official GraphRAG implementation:
+# https://github.com/microsoft/graphrag
+def clean_str(input: Any) -> str:
+    """Clean an input string by removing HTML escapes, control characters, and other unwanted characters."""
+    # If we get non-string input, just give it back
+    if not isinstance(input, str):
+        return input
+
+    result = html.unescape(input.strip())
+    # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
 
 
 # Utils types -----------------------------------------------------------------------
