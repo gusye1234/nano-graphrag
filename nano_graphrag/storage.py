@@ -5,7 +5,7 @@ from typing import Union
 from dataclasses import dataclass
 from pymilvus import MilvusClient
 import networkx as nx
-from ._utils import load_json, write_json
+from ._utils import load_json, write_json, logger
 from ._base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
 
 
@@ -16,14 +16,14 @@ class JsonKVStorage(BaseKVStorage):
         self._file_name = os.path.join(working_dir, f"kv_store_{self.namespace}.json")
         self._data = load_json(self._file_name) or {}
 
+    async def index_done_callback(self):
+        write_json(self._data, self._file_name)
+
     async def get_by_id(self, id):
-        return self._data[id]
+        return self._data.get(id, None)
 
     async def upsert(self, data: dict[str, dict]):
         self._data.update(data)
-
-    async def index_done_callback(self):
-        write_json(self._data, self._file_name)
 
 
 @dataclass
@@ -97,11 +97,14 @@ class NetworkXStorage(BaseGraphStorage):
 
     @staticmethod
     def write_nx_graph(graph: nx.Graph, file_name):
-        nx.write_graphml_xml(graph, file_name)
+        logger.info(
+            f"Writing graph to {file_name} with {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges"
+        )
+        nx.write_graphml(graph, file_name)
 
     def __post_init__(self):
         self._graphml_xml_file = os.path.join(
-            self.global_config["working_dir"], f"{self.namespace}_graphml.xml"
+            self.global_config["working_dir"], f"graph_{self.namespace}.graphml"
         )
         self._graph = (
             NetworkXStorage.load_nx_graph(self._graphml_xml_file) or nx.Graph()

@@ -3,6 +3,7 @@ import asyncio
 from typing import Type, cast
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
+from functools import partial
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete
 from ._utils import (
     limit_async_func_call,
@@ -45,16 +46,9 @@ class GraphRAG:
     vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
 
+    enable_llm_cache: bool = False
+
     def __post_init__(self):
-        self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
-            self.embedding_func
-        )
-        self.best_model_func = limit_async_func_call(
-            max_size=self.best_model_max_async
-        )(self.best_model_func)
-        self.cheap_model_func = limit_async_func_call(
-            max_size=self.cheap_model_max_async
-        )(self.cheap_model_func)
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
@@ -66,6 +60,14 @@ class GraphRAG:
         self.text_chunks = self.key_string_value_json_storage_cls(
             namespace="text_chunks", global_config=asdict(self)
         )
+        self.llm_response_cache = (
+            self.key_string_value_json_storage_cls(
+                namespace="llm_response_cache", global_config=asdict(self)
+            )
+            if self.enable_llm_cache
+            else None
+        )
+
         self.text_chunks_vdb = self.vector_db_storage_cls(
             namespace="text_chunks",
             global_config=asdict(self),
@@ -73,6 +75,16 @@ class GraphRAG:
         )
         self.chunk_entity_relation_graph = self.graph_storage_cls(
             namespace="chunk_entity_relation", global_config=asdict(self)
+        )
+
+        self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
+            self.embedding_func
+        )
+        self.best_model_func = limit_async_func_call(self.best_model_max_async)(
+            partial(self.best_model_func, hashing_kv=self.llm_response_cache)
+        )
+        self.cheap_model_func = limit_async_func_call(self.cheap_model_max_async)(
+            partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
         logger.info(f"GraphRAG init done with param: {asdict(self)}")
 
@@ -89,6 +101,7 @@ class GraphRAG:
             generate_id(prefix="doc-"): {"content": c.strip()}
             for c in string_or_strings
         }
+        logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
         inserting_chunks = {}
         for doc_key, doc in new_docs.items():
@@ -102,13 +115,16 @@ class GraphRAG:
                 )
             }
             inserting_chunks.update(chunks)
+        logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
         await extract_entities(
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
+            chunk_kv_storage_inst=self.text_chunks,
             use_llm_func=self.best_model_func,
             entity_extract_max_gleaning=self.entity_extract_max_gleaning,
         )
+        logger.info("[Entity Extraction] Done")
 
         # upsert to vector db
         # await self.text_chunks_vdb.insert(inserting_chunks)
@@ -119,9 +135,12 @@ class GraphRAG:
         for storage_inst in [
             self.full_docs,
             self.text_chunks,
+            self.llm_response_cache,
             self.text_chunks_vdb,
             self.chunk_entity_relation_graph,
         ]:
+            if storage_inst is None:
+                continue
             await cast(StorageNameSpace, storage_inst).index_done_callback()
 
         logger.info(

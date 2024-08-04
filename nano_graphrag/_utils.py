@@ -7,6 +7,7 @@ import asyncio
 import nest_asyncio
 import tiktoken
 import nanoid
+from hashlib import md5
 from typing import Any
 from functools import wraps
 from dataclasses import dataclass
@@ -63,6 +64,10 @@ def is_float_regex(value):
     return bool(re.match(r"^[-+]?[0-9]*\.?[0-9]+$", value))
 
 
+def compute_args_hash(*args):
+    return md5(str(args).encode()).hexdigest()
+
+
 # -----------------------------------------------------------------------------------
 # Refer the utils functions of the official GraphRAG implementation:
 # https://github.com/microsoft/graphrag
@@ -89,7 +94,7 @@ class EmbeddingFunc:
 
 
 # Decorators ------------------------------------------------------------------------
-def limit_async_func_call(max_size=8, wait_after_seconds=0.01):
+def limit_async_func_call(max_size: int):
     """Add restriction of maximum async calling times for a async func"""
 
     def final_decro(func):

@@ -12,7 +12,7 @@ from ._utils import (
     logger,
 )
 from ._llm import gpt_4o_complete
-from ._base import BaseGraphStorage
+from ._base import BaseGraphStorage, BaseKVStorage
 from .prompt import PROMPTS
 
 openai_async_client = AsyncOpenAI()
@@ -52,12 +52,11 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 async def extract_entities(
     chunks: dict[str, dict],
     knwoledge_graph_inst: BaseGraphStorage,
+    chunk_kv_storage_inst: BaseKVStorage,
     use_llm_func: callable = gpt_4o_complete,
     entity_extract_max_gleaning=1,
 ) -> BaseGraphStorage:
     ordered_chunks = list(chunks.items())
-    contents = [c[1]["content"] for c in ordered_chunks][:1]
-    chunk_keys = [c[0] for c in ordered_chunks][:1]
 
     entity_extract_prompt = PROMPTS["entity_extraction"]
     context_base = dict(
@@ -69,7 +68,8 @@ async def extract_entities(
     continue_prompt = PROMPTS["entiti_continue_extraction"]
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]
 
-    async def _process_single_content(content: str):
+    async def _process_single_content(chunk_dp: dict):
+        content = chunk_dp[1]["content"]
         hint_prompt = entity_extract_prompt.format(**context_base, input_text=content)
         final_result = await use_llm_func(hint_prompt)
 
@@ -86,22 +86,38 @@ async def extract_entities(
                 if_loop_prompt, history_messages=history
             )
             if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
-            logger.info(f"Loop: {if_loop_result}")
             if if_loop_result != "yes":
                 break
+        # TODO clean the final_results
+        chunk_dp[1]["raw_entities"] = final_result
         return final_result
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
-    results = await asyncio.gather(*[_process_single_content(c) for c in contents])
+    logger.info("Extracting entities")
+    await asyncio.gather(*[_process_single_content(c) for c in ordered_chunks])
+    await chunk_kv_storage_inst.upsert({k: v for k, v in ordered_chunks})
 
-    for chunk_key, string_r in zip(chunk_keys, results):
-        records = [
+    for chunk_key, chunk_dp in ordered_chunks:
+        string_r = chunk_dp["raw_entities"]
+        records = []
+        single_round_records = [
             r.strip()
             for r in string_r.split(context_base["record_delimiter"])
             if r.strip()
         ]
+        for sr in single_round_records:
+            records.extend(
+                [
+                    r.strip()
+                    for r in sr.split(context_base["completion_delimiter"])
+                    if r.strip()
+                ]
+            )
         for record in records:
-            record = re.sub(r"^\(|\)$", "", record)
+            record = re.search(r"\((.*)\)", record)
+            if record is None:
+                continue
+            record = record.group(1)
             record_attributes = [
                 r.strip()
                 for r in record.split(context_base["tuple_delimiter"])
@@ -114,21 +130,25 @@ async def extract_entities(
                 entity_type = clean_str(record_attributes[2].upper())
                 entity_description = clean_str(record_attributes[3])
 
+                entity_source_id = chunk_key
                 entity_node_data = await knwoledge_graph_inst.get_node(entity_name)
                 if entity_node_data is not None:
                     entity_description = GRAPH_FIELD_SEP.join(
                         [entity_node_data.get("description", ""), entity_description]
                     )
-                    chunk_key = GRAPH_FIELD_SEP.join(
-                        [entity_node_data["source_id"], chunk_key]
-                    )
+                    if entity_source_id not in entity_node_data["source_id"]:
+                        entity_source_id = GRAPH_FIELD_SEP.join(
+                            [entity_node_data["source_id"], chunk_key]
+                        )
+                    else:
+                        entity_source_id = entity_node_data["source_id"]
                     entity_type = entity_type or entity_node_data.get("entity_type", "")
                 await knwoledge_graph_inst.upsert_node(
                     entity_name,
                     node_data=dict(
                         entity_type=entity_type,
                         description=entity_description,
-                        source_id=chunk_key,
+                        source_id=entity_source_id,
                     ),
                 )
 
@@ -161,12 +181,15 @@ async def extract_entities(
                             edge_description,
                         ]
                     )
-                    edge_source_id = GRAPH_FIELD_SEP.join(
-                        [
-                            edge_data["source_id"],
-                            edge_source_id,
-                        ]
-                    )
+                    if edge_source_id not in edge_data["source_id"]:
+                        edge_source_id = GRAPH_FIELD_SEP.join(
+                            [
+                                edge_data["source_id"],
+                                edge_source_id,
+                            ]
+                        )
+                    else:
+                        edge_source_id = edge_data["source_id"]
                 await knwoledge_graph_inst.upsert_edge(
                     source,
                     target,

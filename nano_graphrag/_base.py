@@ -27,7 +27,7 @@ class BaseVectorStorage(StorageNameSpace):
 
 @dataclass
 class BaseKVStorage(StorageNameSpace):
-    async def get_by_id(self, id):
+    async def get_by_id(self, id) -> Union[dict, None]:
         raise NotImplementedError
 
     async def upsert(self, data: dict[str, dict]):
