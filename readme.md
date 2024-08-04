@@ -23,6 +23,21 @@
 
 
 
+## TODO before publishing
+
+- [x] Base Storages
+- [ ] Index
+  - [x] Chunking
+  - [x] Entity extraction
+  - [ ] Entity summary
+  - [ ] Compute communities
+  - [ ] Community Report
+- [ ] Query
+  - [ ] Global
+  - [ ] Local
+
+
+
 ## Install
 
 **Install from PyPi**
