@@ -307,7 +307,7 @@ Output:
 
 
 PROMPTS[
-    "summarize_descriptions"
+    "summarize_entity_descriptions"
 ] = """You are a helpful assistant responsible for generating a comprehensive summary of the data provided below.
 Given one or two entities, and a list of descriptions, all related to the same entity or group of entities.
 Please concatenate all of these into a single, comprehensive description. Make sure to include information collected from all the descriptions.

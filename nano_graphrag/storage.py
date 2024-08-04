@@ -127,6 +127,12 @@ class NetworkXStorage(BaseGraphStorage):
     ) -> Union[dict, None]:
         return self._graph.edges.get((source_node_id, target_node_id))
 
+    async def list_node_ids(self) -> list[str]:
+        return list(self._graph.nodes)
+
+    async def list_edge_ids(self) -> list[str]:
+        return list(self._graph.edges)
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         self._graph.add_node(node_id, **node_data)
 

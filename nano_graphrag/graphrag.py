@@ -29,6 +29,7 @@ class GraphRAG:
 
     # entity extraction
     entity_extract_max_gleaning: int = 1
+    entity_need_summary_max_tokens: int = 4000
 
     # embedding
     embedding_func: EmbeddingFunc = openai_embedding
@@ -121,8 +122,7 @@ class GraphRAG:
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
             chunk_kv_storage_inst=self.text_chunks,
-            use_llm_func=self.best_model_func,
-            entity_extract_max_gleaning=self.entity_extract_max_gleaning,
+            global_config=asdict(self),
         )
         logger.info("[Entity Extraction] Done")
 
