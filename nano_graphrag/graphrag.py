@@ -30,6 +30,12 @@ class GraphRAG:
     # entity extraction
     entity_extract_max_gleaning: int = 1
     entity_summary_to_max_tokens: int = 500
+
+    # graph clustering
+    graph_cluster_algorithm: str = "leiden"
+    max_graph_cluster_size: int = 10
+    graph_cluster_seed: int = 0xDEADBEEF
+
     # embedding
     embedding_func: EmbeddingFunc = openai_embedding
     embedding_batch_num: int = 16
@@ -119,17 +125,17 @@ class GraphRAG:
             inserting_chunks.update(chunks)
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
-        await extract_entities(
+        self.chunk_entity_relation_graph = await extract_entities(
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
-            chunk_kv_storage_inst=self.text_chunks,
             global_config=asdict(self),
         )
         logger.info("[Entity Extraction] Done")
 
-        # upsert to vector db
+        await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
+        logger.info("[Graph Cluster] Done")
+
         # await self.text_chunks_vdb.insert(inserting_chunks)
-        # upsert to KV
         await self.full_docs.upsert(new_docs)
         await self.text_chunks.upsert(chunks)
 

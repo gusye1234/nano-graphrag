@@ -174,7 +174,6 @@ async def _merge_edges_then_upsert(
 async def extract_entities(
     chunks: dict[str, dict],
     knwoledge_graph_inst: BaseGraphStorage,
-    chunk_kv_storage_inst: BaseKVStorage,
     global_config: dict,
 ) -> BaseGraphStorage:
     use_llm_func: callable = global_config["best_model_func"]
@@ -214,6 +213,7 @@ async def extract_entities(
             if_loop_result = if_loop_result.strip().strip('"').strip("'").lower()
             if if_loop_result != "yes":
                 break
+        # chunk_dp is a reference, so the final upsert will also upsert raw_entities
         chunk_dp["raw_entities"] = final_result
 
         records = split_string_by_multi_markers(
@@ -244,7 +244,6 @@ async def extract_entities(
                 maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
                     if_relation
                 )
-        await chunk_kv_storage_inst.upsert({chunk_key: chunk_dp})
         return maybe_nodes, maybe_edges
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings

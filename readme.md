@@ -30,7 +30,7 @@
   - [x] Chunking
   - [x] Entity extraction
   - [x] Entity summary
-  - [ ] Compute communities
+  - [x] Compute communities
   - [ ] Community Report
 - [ ] Query
   - [ ] Global

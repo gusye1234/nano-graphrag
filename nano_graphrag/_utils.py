@@ -68,6 +68,14 @@ def compute_args_hash(*args):
     return md5(str(args).encode()).hexdigest()
 
 
+def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]:
+    """Split a string by multiple markers"""
+    if not markers:
+        return [content]
+    results = re.split("|".join(re.escape(marker) for marker in markers), content)
+    return [r.strip() for r in results if r.strip()]
+
+
 # -----------------------------------------------------------------------------------
 # Refer the utils functions of the official GraphRAG implementation:
 # https://github.com/microsoft/graphrag
@@ -80,14 +88,6 @@ def clean_str(input: Any) -> str:
     result = html.unescape(input.strip())
     # https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python
     return re.sub(r"[\x00-\x1f\x7f-\x9f]", "", result)
-
-
-def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]:
-    """Split a string by multiple markers"""
-    if not markers:
-        return [content]
-    results = re.split("|".join(re.escape(marker) for marker in markers), content)
-    return [r.strip() for r in results if r.strip()]
 
 
 # Utils types -----------------------------------------------------------------------

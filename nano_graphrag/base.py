@@ -50,16 +50,13 @@ class BaseGraphStorage(StorageNameSpace):
     ) -> Union[dict, None]:
         raise NotImplementedError
 
-    async def list_node_ids(self) -> list[str]:
-        raise NotImplementedError
-
-    async def list_edge_ids(self) -> list[str]:
-        raise NotImplementedError
-
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         raise NotImplementedError
 
     async def upsert_edge(
         self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
     ):
+        raise NotImplementedError
+
+    async def clustering(self, algorithm: str):
         raise NotImplementedError
