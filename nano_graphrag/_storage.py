@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pymilvus import MilvusClient
 import networkx as nx
 from ._utils import load_json, write_json, logger
-from ._base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
+from .base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
 
 
 @dataclass

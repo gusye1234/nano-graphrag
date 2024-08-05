@@ -4,16 +4,16 @@ from typing import Type, cast
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from functools import partial
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete
+from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._utils import (
     limit_async_func_call,
     generate_id,
     EmbeddingFunc,
     logger,
 )
-from ._base import BaseGraphStorage, BaseVectorStorage, BaseKVStorage, StorageNameSpace
-from .storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
-from ._op import chunking_by_token_size, openai_embedding, extract_entities
+from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
+from ._op import chunking_by_token_size, extract_entities
+from .base import BaseGraphStorage, BaseVectorStorage, BaseKVStorage, StorageNameSpace
 
 
 @dataclass
@@ -29,8 +29,7 @@ class GraphRAG:
 
     # entity extraction
     entity_extract_max_gleaning: int = 1
-    entity_need_summary_max_tokens: int = 4000
-
+    entity_summary_to_max_tokens: int = 500
     # embedding
     embedding_func: EmbeddingFunc = openai_embedding
     embedding_batch_num: int = 16
@@ -38,9 +37,11 @@ class GraphRAG:
 
     # LLM
     best_model_func: callable = gpt_4o_complete
+    best_model_max_token_size: int = 32768
     best_model_max_async: int = 8
     cheap_model_func: callable = gpt_4o_mini_complete
-    cheap_model_max_async: int = 8
+    cheap_model_max_token_size: int = 32768
+    cheap_model_max_async: int = 16
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage

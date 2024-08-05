@@ -29,7 +29,7 @@
 - [ ] Index
   - [x] Chunking
   - [x] Entity extraction
-  - [ ] Entity summary
+  - [x] Entity summary
   - [ ] Compute communities
   - [ ] Community Report
 - [ ] Query
@@ -95,13 +95,13 @@ await graph_func.aquery(...)
 
 You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
 
-- `_base.BaseKVStorage` for storing key-json pairs of data. 
+- `base.BaseKVStorage` for storing key-json pairs of data. 
   - By default we use disk file storage as the backend. 
   -  `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
-- `_base.BaseVectorStorage` for indexing embeddings. 
+- `base.BaseVectorStorage` for indexing embeddings. 
   - By default we use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend.
   - `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
-- `_base.BaseGraphStorage` for storing knowledge graph. 
+- `base.BaseGraphStorage` for storing knowledge graph. 
   - By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
   - `GraphRAG(.., graph_storage_cls=YOURS,...)`
 

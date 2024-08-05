@@ -1,11 +1,10 @@
 import re
 import asyncio
-import numpy as np
 from openai import AsyncOpenAI
+from collections import Counter, defaultdict
 from ._utils import (
     encode_string_by_tiktoken,
     decode_tokens_by_tiktoken,
-    wrap_embedding_func_with_attrs,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     is_float_regex,
@@ -13,7 +12,7 @@ from ._utils import (
     logger,
 )
 from ._llm import gpt_4o_complete
-from ._base import BaseGraphStorage, BaseKVStorage
+from .base import BaseGraphStorage, BaseKVStorage
 from .prompt import PROMPTS
 
 openai_async_client = AsyncOpenAI()
@@ -42,58 +41,60 @@ def chunking_by_token_size(
     return results
 
 
-@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
-async def openai_embedding(texts: list[str]) -> np.ndarray:
-    response = await openai_async_client.embeddings.create(
-        model="text-embedding-3-small", input=texts, encoding_format="float"
+async def _handle_entity_relation_summary(
+    entity_or_relation_name: str,
+    description: str,
+    global_config: dict,
+) -> str:
+    use_llm_func: callable = global_config["cheap_model_func"]
+    llm_max_tokens = global_config["cheap_model_max_token_size"]
+    tiktoken_model_name = global_config["tiktoken_model_name"]
+    summary_max_tokens = global_config["entity_summary_to_max_tokens"]
+
+    tokens = encode_string_by_tiktoken(description, model_name=tiktoken_model_name)
+    if len(tokens) < summary_max_tokens:  # No need for summary
+        return description
+    prompt_template = PROMPTS["summarize_entity_descriptions"]
+    use_description = decode_tokens_by_tiktoken(
+        tokens[:llm_max_tokens], model_name=tiktoken_model_name
     )
-    return np.array([dp.embedding for dp in response.data])
+    context_base = dict(
+        entity_name=entity_or_relation_name,
+        description_list=use_description.split(GRAPH_FIELD_SEP),
+    )
+    use_prompt = prompt_template.format(**context_base)
+    logger.info(f"Trigger summary: {entity_or_relation_name}")
+    summary = await use_llm_func(use_prompt, max_tokens=summary_max_tokens)
+    return summary
 
 
 async def _handle_single_entity_extraction(
     record_attributes: list[str],
-    knwoledge_graph_inst: BaseGraphStorage,
     chunk_key: str,
-    global_config: dict,
 ):
     if record_attributes[0] != '"entity"' or len(record_attributes) < 4:
-        return
+        return None
     # add this record as a node in the G
     entity_name = clean_str(record_attributes[1].upper())
+    if not entity_name.strip():
+        return None
     entity_type = clean_str(record_attributes[2].upper())
     entity_description = clean_str(record_attributes[3])
-
     entity_source_id = chunk_key
-    entity_node_data = await knwoledge_graph_inst.get_node(entity_name)
-    if entity_node_data is not None:
-        entity_description = GRAPH_FIELD_SEP.join(
-            [entity_node_data.get("description", ""), entity_description]
-        )
-        if entity_source_id not in entity_node_data["source_id"]:
-            entity_source_id = GRAPH_FIELD_SEP.join(
-                [entity_node_data["source_id"], chunk_key]
-            )
-        else:
-            entity_source_id = entity_node_data["source_id"]
-        entity_type = entity_type or entity_node_data.get("entity_type", "")
-    await knwoledge_graph_inst.upsert_node(
-        entity_name,
-        node_data=dict(
-            entity_type=entity_type,
-            description=entity_description,
-            source_id=entity_source_id,
-        ),
+    return dict(
+        entity_name=entity_name,
+        entity_type=entity_type,
+        description=entity_description,
+        source_id=entity_source_id,
     )
 
 
 async def _handle_single_relationship_extraction(
     record_attributes: list[str],
-    knwoledge_graph_inst: BaseGraphStorage,
     chunk_key: str,
-    global_config: dict,
 ):
     if record_attributes[0] != '"relationship"' or len(record_attributes) < 5:
-        return
+        return None
     # add this record as edge
     source = clean_str(record_attributes[1].upper())
     target = clean_str(record_attributes[2].upper())
@@ -102,40 +103,70 @@ async def _handle_single_relationship_extraction(
     weight = (
         float(record_attributes[-1]) if is_float_regex(record_attributes[-1]) else 1.0
     )
-    if not (await knwoledge_graph_inst.has_node(source)):
-        await knwoledge_graph_inst.upsert_node(
-            source, node_data=dict(source_id=edge_source_id)
-        )
-    if not (await knwoledge_graph_inst.has_node(target)):
-        await knwoledge_graph_inst.upsert_node(
-            target, node_data=dict(source_id=edge_source_id)
-        )
+    return dict(
+        src_id=source,
+        tgt_id=target,
+        weight=weight,
+        description=edge_description,
+        source_id=edge_source_id,
+    )
 
-    if await knwoledge_graph_inst.has_edge(source, target):
-        edge_data = await knwoledge_graph_inst.get_edge(source, target)
-        weight += edge_data["weight"]
-        edge_description = GRAPH_FIELD_SEP.join(
-            [
-                edge_data["description"],
-                edge_description,
-            ]
-        )
-        if edge_source_id not in edge_data["source_id"]:
-            edge_source_id = GRAPH_FIELD_SEP.join(
-                [
-                    edge_data["source_id"],
-                    edge_source_id,
-                ]
+
+async def _merge_nodes_then_upsert(
+    entity_name: str,
+    nodes_data: list[dict],
+    knwoledge_graph_inst: BaseGraphStorage,
+    global_config: dict,
+):
+    entity_type = sorted(
+        Counter([dp["entity_type"] for dp in nodes_data]).items(),
+        key=lambda x: x[1],
+        reverse=True,
+    )[0][0]
+    description = GRAPH_FIELD_SEP.join(
+        sorted(set([dp["description"] for dp in nodes_data]))
+    )
+    source_id = GRAPH_FIELD_SEP.join(set([dp["source_id"] for dp in nodes_data]))
+    description = await _handle_entity_relation_summary(
+        entity_name, description, global_config
+    )
+    await knwoledge_graph_inst.upsert_node(
+        entity_name,
+        node_data=dict(
+            entity_type=entity_type,
+            description=description,
+            source_id=source_id,
+        ),
+    )
+
+
+async def _merge_edges_then_upsert(
+    src_id: str,
+    tgt_id: str,
+    edges_data: list[dict],
+    knwoledge_graph_inst: BaseGraphStorage,
+    global_config: dict,
+):
+    weight = sum([dp["weight"] for dp in edges_data])
+    description = GRAPH_FIELD_SEP.join(
+        sorted(set([dp["description"] for dp in edges_data]))
+    )
+    source_id = GRAPH_FIELD_SEP.join(set([dp["source_id"] for dp in edges_data]))
+    for need_insert_id in [src_id, tgt_id]:
+        if not (await knwoledge_graph_inst.has_node(need_insert_id)):
+            await knwoledge_graph_inst.upsert_node(
+                need_insert_id, node_data={"souce_id": source_id}
             )
-        else:
-            edge_source_id = edge_data["source_id"]
+    description = await _handle_entity_relation_summary(
+        (src_id, tgt_id), description, global_config
+    )
     await knwoledge_graph_inst.upsert_edge(
-        source,
-        target,
+        src_id,
+        tgt_id,
         edge_data=dict(
             weight=weight,
-            description=edge_description,
-            source_id=edge_source_id,
+            description=description,
+            source_id=source_id,
         ),
     )
 
@@ -189,6 +220,9 @@ async def extract_entities(
             final_result,
             [context_base["record_delimiter"], context_base["completion_delimiter"]],
         )
+
+        maybe_nodes = defaultdict(list)
+        maybe_edges = defaultdict(list)
         for record in records:
             record = re.search(r"\((.*)\)", record)
             if record is None:
@@ -197,15 +231,43 @@ async def extract_entities(
             record_attributes = split_string_by_multi_markers(
                 record, [context_base["tuple_delimiter"]]
             )
-            await _handle_single_entity_extraction(
-                record_attributes, knwoledge_graph_inst, chunk_key, global_config
+            if_entities = await _handle_single_entity_extraction(
+                record_attributes, chunk_key
             )
-            await _handle_single_relationship_extraction(
-                record_attributes, knwoledge_graph_inst, chunk_key, global_config
+            if if_entities is not None:
+                maybe_nodes[if_entities["entity_name"]].append(if_entities)
+
+            if_relation = await _handle_single_relationship_extraction(
+                record_attributes, chunk_key
             )
+            if if_relation is not None:
+                maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
+                    if_relation
+                )
         await chunk_kv_storage_inst.upsert({chunk_key: chunk_dp})
-        return final_result
+        return maybe_nodes, maybe_edges
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
-    await asyncio.gather(*[_process_single_content(c) for c in ordered_chunks])
+    results = await asyncio.gather(
+        *[_process_single_content(c) for c in ordered_chunks]
+    )
+    maybe_nodes = defaultdict(list)
+    maybe_edges = defaultdict(list)
+    for m_nodes, m_edges in results:
+        for k, v in m_nodes.items():
+            maybe_nodes[k].extend(v)
+        for k, v in m_edges.items():
+            maybe_edges[k].extend(v)
+    await asyncio.gather(
+        *[
+            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
+            for k, v in maybe_nodes.items()
+        ]
+    )
+    await asyncio.gather(
+        *[
+            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config)
+            for k, v in maybe_edges.items()
+        ]
+    )
     return knwoledge_graph_inst

@@ -1,6 +1,7 @@
+import numpy as np
 from openai import AsyncOpenAI
-from ._base import BaseKVStorage
-from ._utils import compute_args_hash
+from .base import BaseKVStorage
+from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
 
 openai_async_client = AsyncOpenAI()
 
@@ -53,3 +54,11 @@ async def gpt_4o_mini_complete(
         history_messages=history_messages,
         **kwargs,
     )
+
+
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+async def openai_embedding(texts: list[str]) -> np.ndarray:
+    response = await openai_async_client.embeddings.create(
+        model="text-embedding-3-small", input=texts, encoding_format="float"
+    )
+    return np.array([dp.embedding for dp in response.data])
