@@ -10,6 +10,7 @@ class StorageNameSpace:
     global_config: dict
 
     async def index_done_callback(self):
+        """commit the storage operations after indexing"""
         pass
 
 
@@ -33,8 +34,11 @@ class BaseKVStorage(StorageNameSpace):
     async def get_by_id(self, id) -> Union[dict, None]:
         raise NotImplementedError
 
-    async def upsert(self, data: dict[str, dict]) -> list[str]:
-        """Return actually upserted ids"""
+    async def filter_keys(self, data: list[str]) -> set[str]:
+        """return un-exist keys"""
+        raise NotImplementedError
+
+    async def upsert(self, data: dict[str, dict]):
         raise NotImplementedError
 
 

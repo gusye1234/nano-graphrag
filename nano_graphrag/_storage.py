@@ -25,8 +25,13 @@ class JsonKVStorage(BaseKVStorage):
     async def get_by_id(self, id):
         return self._data.get(id, None)
 
+    async def filter_keys(self, data: list[str]) -> set[str]:
+        return set([s for s in data if s not in self._data])
+
     async def upsert(self, data: dict[str, dict]):
-        self._data.update(data)
+        left_data = {k: v for k, v in data.items() if k not in self._data}
+        self._data.update(left_data)
+        return left_data
 
 
 @dataclass
@@ -167,9 +172,12 @@ class NetworkXStorage(BaseGraphStorage):
         self._graphml_xml_file = os.path.join(
             self.global_config["working_dir"], f"graph_{self.namespace}.graphml"
         )
-        self._graph = (
-            NetworkXStorage.load_nx_graph(self._graphml_xml_file) or nx.Graph()
-        )
+        preloaded_graph = NetworkXStorage.load_nx_graph(self._graphml_xml_file)
+        if preloaded_graph is not None:
+            logger.info(
+                f"Loaded graph from {self._graphml_xml_file} with {preloaded_graph.number_of_nodes()} nodes, {preloaded_graph.number_of_edges()} edges"
+            )
+        self._graph = preloaded_graph or nx.Graph()
         self._clustering_algorithms = {
             "leiden": self._leiden_clustering,
         }

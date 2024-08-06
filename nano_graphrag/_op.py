@@ -190,7 +190,12 @@ async def _merge_edges_then_upsert(
     for need_insert_id in [src_id, tgt_id]:
         if not (await knwoledge_graph_inst.has_node(need_insert_id)):
             await knwoledge_graph_inst.upsert_node(
-                need_insert_id, node_data={"souce_id": source_id}
+                need_insert_id,
+                node_data={
+                    "source_id": source_id,
+                    "description": description,
+                    "entity_type": '"UNKNOWN"',
+                },
             )
     description = await _handle_entity_relation_summary(
         (src_id, tgt_id), description, global_config
@@ -279,7 +284,7 @@ async def extract_entities(
                 maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
                     if_relation
                 )
-        return maybe_nodes, maybe_edges
+        return dict(maybe_nodes), dict(maybe_edges)
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
     results = await asyncio.gather(
@@ -291,7 +296,8 @@ async def extract_entities(
         for k, v in m_nodes.items():
             maybe_nodes[k].extend(v)
         for k, v in m_edges.items():
-            maybe_edges[k].extend(v)
+            # it's undirected graph
+            maybe_edges[tuple(sorted(k))].extend(v)
     await asyncio.gather(
         *[
             _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)

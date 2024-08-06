@@ -119,12 +119,20 @@ class GraphRAG:
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
+        # ---------- new docs
         new_docs = {
             compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
             for c in string_or_strings
         }
+        _add_doc_keys = await self.full_docs.filter_keys(list(new_docs.keys()))
+        new_docs = {k: v for k, v in new_docs.items() if k in _add_doc_keys}
+        if not len(new_docs):
+            logger.warning(f"All docs are already in the storage")
+            return
+        await self.full_docs.upsert(new_docs)
         logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
+        # ---------- chunking
         inserting_chunks = {}
         for doc_key, doc in new_docs.items():
             chunks = {
@@ -140,8 +148,19 @@ class GraphRAG:
                 )
             }
             inserting_chunks.update(chunks)
+        _add_chunk_keys = await self.full_docs.filter_keys(
+            list(inserting_chunks.keys())
+        )
+        inserting_chunks = {
+            k: v for k, v in inserting_chunks.items() if k in _add_chunk_keys
+        }
+        if not len(inserting_chunks):
+            logger.warning(f"All chunks are already in the storage")
+            return
+        await self.text_chunks.upsert(chunks)
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
+        # ---------- extract/summary entity and upsert to graph
         self.chunk_entity_relation_graph = await extract_entities(
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
@@ -149,6 +168,7 @@ class GraphRAG:
         )
         logger.info("[Entity Extraction] Done")
 
+        # ---------- update clusterings of graph
         await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
         logger.info("[Graph Cluster] Done")
 
@@ -158,9 +178,8 @@ class GraphRAG:
         # )
 
         # await self.text_chunks_vdb.insert(inserting_chunks)
-        await self.full_docs.upsert(new_docs)
-        await self.text_chunks.upsert(chunks)
 
+        # ---------- commit upsertings and indexing
         for storage_inst in [
             self.full_docs,
             self.text_chunks,
