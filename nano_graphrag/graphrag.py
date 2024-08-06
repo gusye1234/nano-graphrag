@@ -8,6 +8,7 @@ from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._utils import (
     limit_async_func_call,
     generate_id,
+    compute_mdhash_id,
     EmbeddingFunc,
     logger,
 )
@@ -36,8 +37,21 @@ class GraphRAG:
     max_graph_cluster_size: int = 10
     graph_cluster_seed: int = 0xDEADBEEF
 
-    # embedding
-    embedding_func: EmbeddingFunc = openai_embedding
+    # node embedding
+    node_embedding_algorithm: str = "node2vec"
+    node2vec_params: dict = field(
+        default_factory=lambda: {
+            "dimensions": 1536,
+            "num_walks": 10,
+            "walk_length": 40,
+            "num_walks": 10,
+            "window_size": 2,
+            "iterations": 3,
+            "random_seed": 3,
+        }
+    )
+    # text embedding
+    embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 16
     embedding_func_max_async: int = 8
 
@@ -106,7 +120,7 @@ class GraphRAG:
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
         new_docs = {
-            generate_id(prefix="doc-"): {"content": c.strip()}
+            compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
             for c in string_or_strings
         }
         logger.info(f"[New Docs] inserting {len(new_docs)} docs")
@@ -114,7 +128,10 @@ class GraphRAG:
         inserting_chunks = {}
         for doc_key, doc in new_docs.items():
             chunks = {
-                generate_id(prefix="chunk-"): {**dp, "full_doc_id": doc_key}
+                compute_mdhash_id(dp["content"], prefix="chunk-"): {
+                    **dp,
+                    "full_doc_id": doc_key,
+                }
                 for dp in chunking_by_token_size(
                     doc["content"],
                     overlap_token_size=self.chunk_overlap_token_size,
@@ -134,6 +151,11 @@ class GraphRAG:
 
         await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
         logger.info("[Graph Cluster] Done")
+
+        # nodes embedding is not used in nano-graphrag
+        # node_embeddings, node_id = await self.chunk_entity_relation_graph.embed_nodes(
+        #     algorithm=self.node_embedding_algorithm
+        # )
 
         # await self.text_chunks_vdb.insert(inserting_chunks)
         await self.full_docs.upsert(new_docs)

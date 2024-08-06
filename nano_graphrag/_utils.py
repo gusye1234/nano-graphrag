@@ -40,6 +40,10 @@ def generate_id(prefix: str = "", size=16):
     return prefix + nanoid.generate(size=size)
 
 
+def compute_mdhash_id(content, prefix: str = ""):
+    return prefix + md5(content.encode()).hexdigest()
+
+
 def write_json(json_obj, file_name):
     with open(file_name, "w") as f:
         json.dump(json_obj, f, indent=2, ensure_ascii=False)

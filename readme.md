@@ -15,7 +15,7 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult to read or hack.
 
-😊 This project provides a simple GraphRAG implementation with minimal dependencies.
+😊 This project provides a simple GraphRAG implementation with minimal(ish?) dependencies.
 
 🎁 `nano-graphrag` is about 700 lines of code, excluding `tests` and prompts. 
 
@@ -25,12 +25,12 @@
 
 ## TODO before publishing
 
-- [x] Base Storages
 - [ ] Index
   - [x] Chunking
   - [x] Entity extraction
   - [x] Entity summary
   - [x] Compute communities
+  - [ ] Entities Embedding
   - [ ] Community Report
 - [ ] Query
   - [ ] Global

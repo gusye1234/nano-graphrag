@@ -118,15 +118,33 @@ async def _merge_nodes_then_upsert(
     knwoledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
+    already_entities = []
+    already_source_ids = []
+    already_description = []
+
+    already_node = await knwoledge_graph_inst.get_node(entity_name)
+    if already_node is not None:
+        already_entities.append(entity_name)
+        already_source_ids.extend(
+            [
+                i.strip()
+                for i in already_node["source_id"].split(GRAPH_FIELD_SEP)
+                if i.strip()
+            ]
+        )
+        already_description.append(already_node["description"])
+
     entity_type = sorted(
-        Counter([dp["entity_type"] for dp in nodes_data]).items(),
+        Counter([dp["entity_type"] for dp in nodes_data] + already_entities).items(),
         key=lambda x: x[1],
         reverse=True,
     )[0][0]
     description = GRAPH_FIELD_SEP.join(
-        sorted(set([dp["description"] for dp in nodes_data]))
+        sorted(set([dp["description"] for dp in nodes_data] + already_description))
     )
-    source_id = GRAPH_FIELD_SEP.join(set([dp["source_id"] for dp in nodes_data]))
+    source_id = GRAPH_FIELD_SEP.join(
+        set([dp["source_id"] for dp in nodes_data] + already_source_ids)
+    )
     description = await _handle_entity_relation_summary(
         entity_name, description, global_config
     )
@@ -147,11 +165,28 @@ async def _merge_edges_then_upsert(
     knwoledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
-    weight = sum([dp["weight"] for dp in edges_data])
+    already_weights = []
+    already_source_ids = []
+    already_description = []
+    if await knwoledge_graph_inst.has_edge(src_id, tgt_id):
+        already_edge = await knwoledge_graph_inst.get_edge(src_id, tgt_id)
+        already_weights.append(already_edge["weight"])
+        already_source_ids.extend(
+            [
+                i.strip()
+                for i in already_edge["source_id"].split(GRAPH_FIELD_SEP)
+                if i.strip()
+            ]
+        )
+        already_description.append(already_edge["description"])
+
+    weight = sum([dp["weight"] for dp in edges_data] + already_weights)
     description = GRAPH_FIELD_SEP.join(
-        sorted(set([dp["description"] for dp in edges_data]))
+        sorted(set([dp["description"] for dp in edges_data] + already_description))
     )
-    source_id = GRAPH_FIELD_SEP.join(set([dp["source_id"] for dp in edges_data]))
+    source_id = GRAPH_FIELD_SEP.join(
+        set([dp["source_id"] for dp in edges_data] + already_source_ids)
+    )
     for need_insert_id in [src_id, tgt_id]:
         if not (await knwoledge_graph_inst.has_node(need_insert_id)):
             await knwoledge_graph_inst.upsert_node(

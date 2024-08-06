@@ -1,3 +1,4 @@
+import numpy as np
 from typing import Union
 from dataclasses import dataclass, field
 from ._utils import EmbeddingFunc
@@ -17,11 +18,13 @@ class BaseVectorStorage(StorageNameSpace):
     embedding_func: EmbeddingFunc
     meta_fields: set = field(default_factory=set)
 
-    async def query(self, query):
+    async def query(self, query: str, top_k: int) -> list[dict]:
         raise NotImplementedError
 
     async def insert(self, data: dict[str, dict]):
-        """Use 'content' from value for embedding, use key as id"""
+        """Use 'content' field from value for embedding, use key as id.
+        If embedding_func is None, use 'embedding' field from value
+        """
         raise NotImplementedError
 
 
@@ -30,7 +33,8 @@ class BaseKVStorage(StorageNameSpace):
     async def get_by_id(self, id) -> Union[dict, None]:
         raise NotImplementedError
 
-    async def upsert(self, data: dict[str, dict]):
+    async def upsert(self, data: dict[str, dict]) -> list[str]:
+        """Return actually upserted ids"""
         raise NotImplementedError
 
 
@@ -60,3 +64,6 @@ class BaseGraphStorage(StorageNameSpace):
 
     async def clustering(self, algorithm: str):
         raise NotImplementedError
+
+    async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:
+        raise NotImplementedError("Node embedding is not used in nano-graphrag.")

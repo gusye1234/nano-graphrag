@@ -8,7 +8,7 @@ from collections import defaultdict
 from typing import Union, Any, cast
 from dataclasses import dataclass
 from pymilvus import MilvusClient
-from ._utils import load_json, write_json, logger
+from ._utils import load_json, write_json, logger, generate_id
 from .base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
 
 
@@ -170,9 +170,11 @@ class NetworkXStorage(BaseGraphStorage):
         self._graph = (
             NetworkXStorage.load_nx_graph(self._graphml_xml_file) or nx.Graph()
         )
-
         self._clustering_algorithms = {
             "leiden": self._leiden_clustering,
+        }
+        self._node_embed_algorithms = {
+            "node2vec": self._node2vec_embed,
         }
 
     async def index_done_callback(self):
@@ -205,9 +207,15 @@ class NetworkXStorage(BaseGraphStorage):
             raise ValueError(f"Clustering algorithm {algorithm} not supported")
         await self._clustering_algorithms[algorithm]()
 
+    async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:
+        if algorithm not in self._node_embed_algorithms:
+            raise ValueError(f"Node embedding algorithm {algorithm} not supported")
+        return await self._node_embed_algorithms[algorithm]()
+
     def _cluster_data_to_subgraphs(self, cluster_data: dict[str, list[dict[str, str]]]):
         for node_id, clusters in cluster_data.items():
             self._graph.nodes[node_id]["clusters"] = json.dumps(clusters)
+            self._graph.nodes[node_id]["id"] = generate_id(prefix="node-")
 
     async def _leiden_clustering(self):
         from graspologic.partition import hierarchical_leiden
@@ -222,10 +230,22 @@ class NetworkXStorage(BaseGraphStorage):
         node_communities: dict[str, list[dict[str, str]]] = defaultdict(list)
         # results:  = {}
         for partition in community_mapping:
-            level_key = str(partition.level)
-            cluster_id = str(partition.cluster)
+            level_key = partition.level
+            cluster_id = partition.cluster
             node_communities[partition.node].append(
                 {"level": level_key, "cluster": cluster_id}
             )
         node_communities = dict(node_communities)
+        self._graph = graph
         self._cluster_data_to_subgraphs(node_communities)
+
+    async def _node2vec_embed(self):
+        from graspologic import embed
+
+        embeddings, nodes = embed.node2vec_embed(
+            self._graph,
+            **self.global_config["node2vec_params"],
+        )
+
+        nodes_ids = [self._graph.nodes[node_id]["id"] for node_id in nodes]
+        return embeddings, nodes_ids
