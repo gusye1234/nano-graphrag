@@ -55,7 +55,7 @@ class MilvusLiteStorge(BaseVectorStorage):
             return
         # TODO add constants for ID max length to 32
         client.create_collection(
-            collection_name, max_length=32, id_type="string", auto_id=False, **kwargs
+            collection_name, max_length=32, id_type="string", **kwargs
         )
 
     def __post_init__(self):

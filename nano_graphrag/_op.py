@@ -361,6 +361,28 @@ async def _pack_single_community_describe(
 ```"""
 
 
+def _community_report_json_to_str(parsed_output: dict) -> str:
+    """refer official graphrag: index/graph/extractors/community_reports"""
+    title = parsed_output.get("title", "Report")
+    summary = parsed_output.get("summary", "")
+    findings = parsed_output.get("findings", [])
+
+    def finding_summary(finding: dict):
+        if isinstance(finding, str):
+            return finding
+        return finding.get("summary")
+
+    def finding_explanation(finding: dict):
+        if isinstance(finding, str):
+            return ""
+        return finding.get("explanation")
+
+    report_sections = "\n\n".join(
+        f"## {finding_summary(f)}\n\n{finding_explanation(f)}" for f in findings
+    )
+    return f"# {title}\n\n{summary}\n\n{report_sections}"
+
+
 async def generate_community_report(
     community_report_kv: BaseKVStorage,
     knwoledge_graph_inst: BaseGraphStorage,
@@ -382,14 +404,17 @@ async def generate_community_report(
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
         data = json.loads(response)
-        data = {}
         return data
 
     communities_reports = await asyncio.gather(
         *[_form_single_community_report(c) for c in community_values]
     )
     community_datas = {
-        k: {"report": r, "data": v}
+        k: {
+            "report_string": _community_report_json_to_str(r),
+            "report_json": r,
+            "data": v,
+        }
         for k, r, v in zip(community_keys, communities_reports, community_values)
     }
     await community_report_kv.upsert(community_datas)

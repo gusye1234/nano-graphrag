@@ -13,13 +13,13 @@
 
 
 
-😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to read or hack.
+😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
-😊 This project provides a simple GraphRAG implementation with minimal(ish?) dependencies.
+😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality.
 
-🎁 `nano-graphrag` is about 700 lines of code, excluding `tests` and prompts. 
+🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **700 lines of code**.
 
-👌 Small yet scalable. Fully asynchronous. You can switch any component you want!
+👌 Small yet **scalable**, **asynchronous** and **fully typed**
 
 
 
@@ -89,9 +89,19 @@ await graph_func.aquery(...)
 ...
 ```
 
+### Available Parameters
+
+In IDE/VSCode, hovering your cursor on `GraphRAG` to see all the available parameters.
 
 
-## Advanced:  Storage
+
+## Advanced - Prompts
+
+`nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
+
+
+
+## Advanced -  Storage
 
 You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
 

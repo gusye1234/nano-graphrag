@@ -94,7 +94,7 @@ class BaseGraphStorage(StorageNameSpace):
         raise NotImplementedError
 
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
-        """refer to create_final_communities"""
+        """refer official graphrag: index/to create_final_communities"""
         raise NotImplementedError
 
     async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:

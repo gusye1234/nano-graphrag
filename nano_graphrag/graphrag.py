@@ -73,8 +73,9 @@ class GraphRAG:
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
-
     enable_llm_cache: bool = False
+
+    backup_params: dict = field(default_factory=dict)
 
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
@@ -87,9 +88,11 @@ class GraphRAG:
         self.full_docs = self.key_string_value_json_storage_cls(
             namespace="full_docs", global_config=asdict(self)
         )
+
         self.text_chunks = self.key_string_value_json_storage_cls(
             namespace="text_chunks", global_config=asdict(self)
         )
+
         self.llm_response_cache = (
             self.key_string_value_json_storage_cls(
                 namespace="llm_response_cache", global_config=asdict(self)
@@ -97,16 +100,23 @@ class GraphRAG:
             if self.enable_llm_cache
             else None
         )
+
         self.community_reports = self.key_string_value_json_storage_cls(
             namespace="community_reports", global_config=asdict(self)
         )
 
-        self.text_chunks_vdb = None
-        # self.text_chunks_vdb = self.vector_db_storage_cls(
-        #     namespace="text_chunks",
-        #     global_config=asdict(self),
-        #     embedding_func=self.embedding_func,
-        # )
+        self.text_chunks_vdb = self.vector_db_storage_cls(
+            namespace="text_chunks",
+            global_config=asdict(self),
+            embedding_func=self.embedding_func,
+        )
+
+        self.entities_vdb = self.vector_db_storage_cls(
+            namespace="entities",
+            global_config=asdict(self),
+            embedding_func=self.embedding_func,
+        )
+
         self.chunk_entity_relation_graph = self.graph_storage_cls(
             namespace="chunk_entity_relation", global_config=asdict(self)
         )
@@ -121,10 +131,10 @@ class GraphRAG:
             partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
 
-    async def aquery(self, query: str):
+    async def aquery(self, query: str, mode: str = "global", level=2):
         return await self.best_model_func(query)
 
-    def query(self, query: str):
+    def query(self, query: str, mode: str = "global", level=2):
         return asyncio.run(self.aquery(query))
 
     async def ainsert(self, string_or_strings):
@@ -170,6 +180,7 @@ class GraphRAG:
             logger.warning(f"All chunks are already in the storage")
             return
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
+        await self.text_chunks_vdb.insert(inserting_chunks)
 
         # ---------- extract/summary entity and upsert to graph
         self.chunk_entity_relation_graph = await extract_entities(
