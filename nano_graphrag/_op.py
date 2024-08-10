@@ -1,4 +1,5 @@
 import re
+import json
 import asyncio
 from openai import AsyncOpenAI
 from collections import Counter, defaultdict
@@ -9,15 +10,14 @@ from ._utils import (
     split_string_by_multi_markers,
     is_float_regex,
     clean_str,
+    list_of_list_to_csv,
     logger,
 )
 from ._llm import gpt_4o_complete
-from .base import BaseGraphStorage, BaseKVStorage
-from .prompt import PROMPTS
+from .base import BaseGraphStorage, BaseKVStorage, SingleCommunitySchema
+from .prompt import PROMPTS, GRAPH_FIELD_SEP
 
 openai_async_client = AsyncOpenAI()
-
-GRAPH_FIELD_SEP = "<SEP>"
 
 
 def chunking_by_token_size(
@@ -63,7 +63,7 @@ async def _handle_entity_relation_summary(
         description_list=use_description.split(GRAPH_FIELD_SEP),
     )
     use_prompt = prompt_template.format(**context_base)
-    logger.info(f"Trigger summary: {entity_or_relation_name}")
+    logger.debug(f"Trigger summary: {entity_or_relation_name}")
     summary = await use_llm_func(use_prompt, max_tokens=summary_max_tokens)
     return summary
 
@@ -311,3 +311,85 @@ async def extract_entities(
         ]
     )
     return knwoledge_graph_inst
+
+
+async def _pack_single_community_describe(
+    knwoledge_graph_inst: BaseGraphStorage, community: SingleCommunitySchema
+) -> str:
+    nodes_in_order = sorted(community["nodes"])
+    edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
+
+    nodes_data = await asyncio.gather(
+        *[knwoledge_graph_inst.get_node(n) for n in nodes_in_order]
+    )
+    edges_data = await asyncio.gather(
+        *[knwoledge_graph_inst.get_edge(src, tgt) for src, tgt in edges_in_order]
+    )
+    node_fields = ["id", "entity", "type", "description", "degree"]
+    edge_fields = ["id", "source", "target", "description", "rank"]
+    nodes_list_data = [
+        [
+            i,
+            node_name,
+            node_data.get("entity_type", "UNKNOWN"),
+            node_data.get("description", "UNKNOWN"),
+            await knwoledge_graph_inst.node_degree(node_name),
+        ]
+        for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
+    ]
+    edges_list_data = [
+        [
+            i,
+            edge_name[0],
+            edge_name[1],
+            edge_data.get("description", "UNKNOWN"),
+            await knwoledge_graph_inst.edge_degree(*edge_name),
+        ]
+        for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
+    ]
+
+    nodes_describe = list_of_list_to_csv([node_fields] + nodes_list_data)
+    edges_describe = list_of_list_to_csv([edge_fields] + edges_list_data)
+
+    return f"""-----Entities-----
+```csv
+{nodes_describe}
+```
+-----Relationships-----
+```csv
+{edges_describe}
+```"""
+
+
+async def generate_community_report(
+    community_report_kv: BaseKVStorage,
+    knwoledge_graph_inst: BaseGraphStorage,
+    global_config: dict,
+):
+    llm_extra_kwargs = global_config["special_community_report_llm_kwargs"]
+    use_llm_func: callable = global_config["best_model_func"]
+    community_report_prompt = PROMPTS["community_report"]
+
+    communities_schema = await knwoledge_graph_inst.community_schema()
+    community_keys, community_values = list(communities_schema.keys()), list(
+        communities_schema.values()
+    )
+
+    async def _form_single_community_report(community: SingleCommunitySchema):
+        describe = await _pack_single_community_describe(
+            knwoledge_graph_inst, community
+        )
+        prompt = community_report_prompt.format(input_text=describe)
+        response = await use_llm_func(prompt, **llm_extra_kwargs)
+        data = json.loads(response)
+        data = {}
+        return data
+
+    communities_reports = await asyncio.gather(
+        *[_form_single_community_report(c) for c in community_values]
+    )
+    community_datas = {
+        k: {"report": r, "data": v}
+        for k, r, v in zip(community_keys, communities_reports, community_values)
+    }
+    await community_report_kv.upsert(community_datas)

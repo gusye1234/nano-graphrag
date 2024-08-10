@@ -1,7 +1,18 @@
 import numpy as np
-from typing import Union
+from typing import Union, TypedDict
 from dataclasses import dataclass, field
 from ._utils import EmbeddingFunc
+
+SingleCommunitySchema = TypedDict(
+    "SingleCommunitySchema",
+    {
+        "level": int,
+        "title": str,
+        "edges": list[list[str, str]],
+        "nodes": list[str],
+        "chunk_ids": list[str],
+    },
+)
 
 
 @dataclass
@@ -11,6 +22,10 @@ class StorageNameSpace:
 
     async def index_done_callback(self):
         """commit the storage operations after indexing"""
+        pass
+
+    async def query_done_callback(self):
+        """commit the storage operations after querying"""
         pass
 
 
@@ -41,6 +56,9 @@ class BaseKVStorage(StorageNameSpace):
     async def upsert(self, data: dict[str, dict]):
         raise NotImplementedError
 
+    async def drop(self):
+        raise NotImplementedError
+
 
 @dataclass
 class BaseGraphStorage(StorageNameSpace):
@@ -48,6 +66,12 @@ class BaseGraphStorage(StorageNameSpace):
         raise NotImplementedError
 
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
+        raise NotImplementedError
+
+    async def node_degree(self, node_id: str) -> int:
+        raise NotImplementedError
+
+    async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         raise NotImplementedError
 
     async def get_node(self, node_id: str) -> Union[dict, None]:
@@ -67,6 +91,10 @@ class BaseGraphStorage(StorageNameSpace):
         raise NotImplementedError
 
     async def clustering(self, algorithm: str):
+        raise NotImplementedError
+
+    async def community_schema(self) -> dict[str, SingleCommunitySchema]:
+        """refer to create_final_communities"""
         raise NotImplementedError
 
     async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:

@@ -9,7 +9,13 @@ from typing import Union, Any, cast
 from dataclasses import dataclass
 from pymilvus import MilvusClient
 from ._utils import load_json, write_json, logger, generate_id
-from .base import BaseVectorStorage, BaseKVStorage, BaseGraphStorage
+from .base import (
+    BaseVectorStorage,
+    BaseKVStorage,
+    BaseGraphStorage,
+    SingleCommunitySchema,
+)
+from .prompt import GRAPH_FIELD_SEP
 
 
 @dataclass
@@ -18,6 +24,7 @@ class JsonKVStorage(BaseKVStorage):
         working_dir = self.global_config["working_dir"]
         self._file_name = os.path.join(working_dir, f"kv_store_{self.namespace}.json")
         self._data = load_json(self._file_name) or {}
+        logger.info(f"Load KV {self.namespace} with {len(self._data)} data")
 
     async def index_done_callback(self):
         write_json(self._data, self._file_name)
@@ -32,6 +39,9 @@ class JsonKVStorage(BaseKVStorage):
         left_data = {k: v for k, v in data.items() if k not in self._data}
         self._data.update(left_data)
         return left_data
+
+    async def drop(self):
+        self._data = {}
 
 
 @dataclass
@@ -108,7 +118,7 @@ class NetworkXStorage(BaseGraphStorage):
     @staticmethod
     def write_nx_graph(graph: nx.Graph, file_name):
         logger.info(
-            f"Writing graph to {file_name} with {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges"
+            f"Writing graph with {graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges"
         )
         nx.write_graphml(graph, file_name)
 
@@ -138,16 +148,6 @@ class NetworkXStorage(BaseGraphStorage):
         fixed_graph.add_nodes_from(sorted_nodes)
         edges = list(graph.edges(data=True))
 
-        # If the graph is undirected, we create the edges in a stable way, so we get the same results
-        # for example:
-        # A -> B
-        # in graph theory is the same as
-        # B -> A
-        # in an undirected graph
-        # however, this can lead to downstream issues because sometimes
-        # consumers read graph.nodes() which ends up being [A, B] and sometimes it's [B, A]
-        # but they base some of their logic on the order of the nodes, so the order ends up being important
-        # so we sort the nodes in the edge in a stable way, so that we always get the same order
         if not graph.is_directed():
 
             def _sort_source_target(edge):
@@ -197,6 +197,12 @@ class NetworkXStorage(BaseGraphStorage):
     async def get_node(self, node_id: str) -> Union[dict, None]:
         return self._graph.nodes.get(node_id)
 
+    async def node_degree(self, node_id: str) -> int:
+        return self._graph.degree(node_id)
+
+    async def edge_degree(self, src_id: str, tgt_id: str) -> int:
+        return self._graph.degree(src_id) + self._graph.degree(tgt_id)
+
     async def get_edge(
         self, source_node_id: str, target_node_id: str
     ) -> Union[dict, None]:
@@ -220,10 +226,40 @@ class NetworkXStorage(BaseGraphStorage):
             raise ValueError(f"Node embedding algorithm {algorithm} not supported")
         return await self._node_embed_algorithms[algorithm]()
 
+    async def community_schema(self) -> dict[str, SingleCommunitySchema]:
+        results = defaultdict(
+            lambda: dict(
+                level=None, title=None, edges=set(), nodes=set(), chunk_ids=set()
+            )
+        )
+        for node_id, node_data in self._graph.nodes(data=True):
+            if "clusters" not in node_data:
+                continue
+            clusters = json.loads(node_data["clusters"])
+            this_node_edges = self._graph.edges(node_id)
+
+            for cluster in clusters:
+                level = cluster["level"]
+                cluster_key = str(cluster["cluster"])
+                results[cluster_key]["level"] = level
+                results[cluster_key]["title"] = f"Cluster {cluster_key}"
+                results[cluster_key]["nodes"].add(node_id)
+                results[cluster_key]["edges"].update(
+                    [tuple(sorted(e)) for e in this_node_edges]
+                )
+                results[cluster_key]["chunk_ids"].update(
+                    node_data["source_id"].split(GRAPH_FIELD_SEP)
+                )
+        for k, v in results.items():
+            v["edges"] = list(v["edges"])
+            v["edges"] = [list(e) for e in v["edges"]]
+            v["nodes"] = list(v["nodes"])
+            v["chunk_ids"] = list(v["chunk_ids"])
+        return dict(results)
+
     def _cluster_data_to_subgraphs(self, cluster_data: dict[str, list[dict[str, str]]]):
         for node_id, clusters in cluster_data.items():
             self._graph.nodes[node_id]["clusters"] = json.dumps(clusters)
-            self._graph.nodes[node_id]["id"] = generate_id(prefix="node-")
 
     async def _leiden_clustering(self):
         from graspologic.partition import hierarchical_leiden
@@ -233,17 +269,20 @@ class NetworkXStorage(BaseGraphStorage):
             graph,
             max_cluster_size=self.global_config["max_graph_cluster_size"],
             random_seed=self.global_config["graph_cluster_seed"],
+            is_weighted=True,
         )
 
         node_communities: dict[str, list[dict[str, str]]] = defaultdict(list)
-        # results:  = {}
+        __levels = defaultdict(int)
         for partition in community_mapping:
             level_key = partition.level
             cluster_id = partition.cluster
             node_communities[partition.node].append(
                 {"level": level_key, "cluster": cluster_id}
             )
+            __levels[level_key] += 1
         node_communities = dict(node_communities)
+        logger.info(f"Each level has nodes: {dict(__levels)}")
         self._graph = graph
         self._cluster_data_to_subgraphs(node_communities)
 

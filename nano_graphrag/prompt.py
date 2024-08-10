@@ -1,3 +1,4 @@
+GRAPH_FIELD_SEP = "<SEP>"
 PROMPTS = {}
 
 PROMPTS[
@@ -56,7 +57,8 @@ Output: """
 
 PROMPTS[
     "community_report"
-] = """You are an AI assistant that helps a human analyst to perform general information discovery. Information discovery is the process of identifying and assessing relevant information associated with certain entities (e.g., organizations and individuals) within a network.
+] = """You are an AI assistant that helps a human analyst to perform general information discovery. 
+Information discovery is the process of identifying and assessing relevant information associated with certain entities (e.g., organizations and individuals) within a network.
 
 # Goal
 Write a comprehensive report of a community, given a list of entities that belong to the community as well as their relationships and optional associated claims. The report will be used to inform decision-makers about information associated with the community and their potential impact. The content of this report includes an overview of the community's key entities, their legal compliance, technical capabilities, reputation, and noteworthy claims.
@@ -86,6 +88,7 @@ Return output as a well-formed JSON-formatted string with the following format:
                 "summary":<insight_2_summary>,
                 "explanation": <insight_2_explanation>
             }}
+            ...
         ]
     }}
 
@@ -108,15 +111,15 @@ Do not include information where the supporting evidence for it is not provided.
 # Example Input
 -----------
 Text:
-
-Entities
-
-id,entity,description
-5,VERDANT OASIS PLAZA,Verdant Oasis Plaza is the location of the Unity March
-6,HARMONY ASSEMBLY,Harmony Assembly is an organization that is holding a march at Verdant Oasis Plaza
-
-Relationships
-
+```
+Entities:
+```csv
+id,entity,type,description
+5,VERDANT OASIS PLAZA,geo,Verdant Oasis Plaza is the location of the Unity March
+6,HARMONY ASSEMBLY,organization,Harmony Assembly is an organization that is holding a march at Verdant Oasis Plaza
+```
+Relationships:
+```csv
 id,source,target,description
 37,VERDANT OASIS PLAZA,UNITY MARCH,Verdant Oasis Plaza is the location of the Unity March
 38,VERDANT OASIS PLAZA,HARMONY ASSEMBLY,Harmony Assembly is holding a march at Verdant Oasis Plaza
@@ -124,7 +127,8 @@ id,source,target,description
 40,VERDANT OASIS PLAZA,TRIBUNE SPOTLIGHT,Tribune Spotlight is reporting on the Unity march taking place at Verdant Oasis Plaza
 41,VERDANT OASIS PLAZA,BAILEY ASADI,Bailey Asadi is speaking at Verdant Oasis Plaza about the march
 43,HARMONY ASSEMBLY,UNITY MARCH,Harmony Assembly is organizing the Unity March
-
+```
+```
 Output:
 {{
     "title": "Verdant Oasis Plaza and Unity March",
@@ -157,7 +161,9 @@ Output:
 Use the following text for your answer. Do not make anything up in your answer.
 
 Text:
+```
 {input_text}
+```
 
 The report should include the following sections:
 
@@ -182,6 +188,7 @@ Return output as a well-formed JSON-formatted string with the following format:
                 "summary":<insight_2_summary>,
                 "explanation": <insight_2_explanation>
             }}
+            ...
         ]
     }}
 

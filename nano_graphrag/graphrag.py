@@ -13,7 +13,7 @@ from ._utils import (
     logger,
 )
 from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
-from ._op import chunking_by_token_size, extract_entities
+from ._op import chunking_by_token_size, extract_entities, generate_community_report
 from .base import BaseGraphStorage, BaseVectorStorage, BaseKVStorage, StorageNameSpace
 
 
@@ -50,6 +50,12 @@ class GraphRAG:
             "random_seed": 3,
         }
     )
+
+    # community reports
+    special_community_report_llm_kwargs: dict = field(
+        default_factory=lambda: {"response_format": {"type": "json_object"}}
+    )
+
     # text embedding
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 16
@@ -71,6 +77,8 @@ class GraphRAG:
     enable_llm_cache: bool = False
 
     def __post_init__(self):
+        _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
+        logger.debug(f"GraphRAG init with param:\n\n  {_print_config}\n")
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
@@ -89,12 +97,16 @@ class GraphRAG:
             if self.enable_llm_cache
             else None
         )
-
-        self.text_chunks_vdb = self.vector_db_storage_cls(
-            namespace="text_chunks",
-            global_config=asdict(self),
-            embedding_func=self.embedding_func,
+        self.community_reports = self.key_string_value_json_storage_cls(
+            namespace="community_reports", global_config=asdict(self)
         )
+
+        self.text_chunks_vdb = None
+        # self.text_chunks_vdb = self.vector_db_storage_cls(
+        #     namespace="text_chunks",
+        #     global_config=asdict(self),
+        #     embedding_func=self.embedding_func,
+        # )
         self.chunk_entity_relation_graph = self.graph_storage_cls(
             namespace="chunk_entity_relation", global_config=asdict(self)
         )
@@ -108,7 +120,6 @@ class GraphRAG:
         self.cheap_model_func = limit_async_func_call(self.cheap_model_max_async)(
             partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
-        logger.info(f"GraphRAG init done with param: {asdict(self)}")
 
     async def aquery(self, query: str):
         return await self.best_model_func(query)
@@ -119,6 +130,8 @@ class GraphRAG:
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
+        # TODO: no incremental update for communities now, so just drop all
+        await self.community_reports.drop()
         # ---------- new docs
         new_docs = {
             compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
@@ -129,7 +142,6 @@ class GraphRAG:
         if not len(new_docs):
             logger.warning(f"All docs are already in the storage")
             return
-        await self.full_docs.upsert(new_docs)
         logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
         # ---------- chunking
@@ -157,7 +169,6 @@ class GraphRAG:
         if not len(inserting_chunks):
             logger.warning(f"All chunks are already in the storage")
             return
-        await self.text_chunks.upsert(chunks)
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
         # ---------- extract/summary entity and upsert to graph
@@ -170,30 +181,34 @@ class GraphRAG:
 
         # ---------- update clusterings of graph
         await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
-        logger.info("[Graph Cluster] Done")
-
-        # nodes embedding is not used in nano-graphrag
-        # node_embeddings, node_id = await self.chunk_entity_relation_graph.embed_nodes(
-        #     algorithm=self.node_embedding_algorithm
-        # )
-
-        # await self.text_chunks_vdb.insert(inserting_chunks)
+        await generate_community_report(
+            self.community_reports, self.chunk_entity_relation_graph, asdict(self)
+        )
+        logger.info("[Community Report] Done")
 
         # ---------- commit upsertings and indexing
+        await self.full_docs.upsert(new_docs)
+        await self.text_chunks.upsert(chunks)
+
+        await self._insert_done()
+
+    async def _insert_done(self):
+        tasks = []
         for storage_inst in [
             self.full_docs,
             self.text_chunks,
             self.llm_response_cache,
+            self.community_reports,
             self.text_chunks_vdb,
             self.chunk_entity_relation_graph,
         ]:
             if storage_inst is None:
                 continue
-            await cast(StorageNameSpace, storage_inst).index_done_callback()
+            tasks.append(cast(StorageNameSpace, storage_inst).index_done_callback())
+        await asyncio.gather(*tasks)
 
-        logger.info(
-            f"Process {len(new_docs)} new docs, add {len(inserting_chunks)} new chunks"
-        )
+    async def _query_done(self):
+        pass
 
     def insert(self, string_or_strings):
         return asyncio.run(self.ainsert(string_or_strings))
