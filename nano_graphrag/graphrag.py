@@ -22,6 +22,8 @@ class GraphRAG:
     working_dir: str = field(
         default_factory=lambda: f"./nano_graphrag_cache_{datetime.now().strftime('%Y-%m-%d-%H:%M:%S')}"
     )
+    # graph mode
+    enable_local: bool = True
 
     # text chunking
     chunk_token_size: int = 1200
@@ -104,19 +106,6 @@ class GraphRAG:
         self.community_reports = self.key_string_value_json_storage_cls(
             namespace="community_reports", global_config=asdict(self)
         )
-
-        self.text_chunks_vdb = self.vector_db_storage_cls(
-            namespace="text_chunks",
-            global_config=asdict(self),
-            embedding_func=self.embedding_func,
-        )
-
-        self.entities_vdb = self.vector_db_storage_cls(
-            namespace="entities",
-            global_config=asdict(self),
-            embedding_func=self.embedding_func,
-        )
-
         self.chunk_entity_relation_graph = self.graph_storage_cls(
             namespace="chunk_entity_relation", global_config=asdict(self)
         )
@@ -124,6 +113,17 @@ class GraphRAG:
         self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
             self.embedding_func
         )
+        self.entities_vdb = (
+            self.vector_db_storage_cls(
+                namespace="entities",
+                global_config=asdict(self),
+                embedding_func=self.embedding_func,
+                meta_fields={"entity_name"},
+            )
+            if self.enable_local
+            else None
+        )
+
         self.best_model_func = limit_async_func_call(self.best_model_max_async)(
             partial(self.best_model_func, hashing_kv=self.llm_response_cache)
         )
@@ -131,11 +131,30 @@ class GraphRAG:
             partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
 
-    async def aquery(self, query: str, mode: str = "global", level=2):
-        return await self.best_model_func(query)
+    async def aquery(self, query: str, mode: str = "global", level=2, top_k=10):
+        if mode == "local" and not self.enable_local:
+            raise ValueError("enable_local is False, cannot query in local mode")
+        if mode == "local":
+            results = await self.entities_vdb.query(query, top_k=top_k)
 
-    def query(self, query: str, mode: str = "global", level=2):
-        return asyncio.run(self.aquery(query))
+            node_datas = await asyncio.gather(
+                *[
+                    self.chunk_entity_relation_graph.get_node(r["entity_name"])
+                    for r in results
+                ]
+            )
+            assert all(
+                [n is not None for n in node_datas]
+            ), "Some nodes are missing, maybe the storage is damaged"
+
+            return ""
+        elif mode == "global":
+            return await self.best_model_func(query)
+        else:
+            raise ValueError(f"Unknown mode {mode}")
+
+    def query(self, query: str, mode: str = "global", level=2, top_k=10):
+        return asyncio.run(self.aquery(query, mode=mode, level=level, top_k=top_k))
 
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):
@@ -180,12 +199,12 @@ class GraphRAG:
             logger.warning(f"All chunks are already in the storage")
             return
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
-        await self.text_chunks_vdb.insert(inserting_chunks)
 
         # ---------- extract/summary entity and upsert to graph
         self.chunk_entity_relation_graph = await extract_entities(
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
+            entity_vdb=self.entities_vdb,
             global_config=asdict(self),
         )
         logger.info("[Entity Extraction] Done")
@@ -200,7 +219,6 @@ class GraphRAG:
         # ---------- commit upsertings and indexing
         await self.full_docs.upsert(new_docs)
         await self.text_chunks.upsert(chunks)
-
         await self._insert_done()
 
     async def _insert_done(self):
@@ -210,7 +228,7 @@ class GraphRAG:
             self.text_chunks,
             self.llm_response_cache,
             self.community_reports,
-            self.text_chunks_vdb,
+            self.entities_vdb,
             self.chunk_entity_relation_graph,
         ]:
             if storage_inst is None:

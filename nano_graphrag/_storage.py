@@ -72,6 +72,7 @@ class MilvusLiteStorge(BaseVectorStorage):
         )
 
     async def insert(self, data: dict[str, dict]):
+        logger.info(f"Inserting {len(data)} vectors to {self.namespace}")
         list_data = [
             {
                 "id": k,
@@ -273,17 +274,17 @@ class NetworkXStorage(BaseGraphStorage):
         )
 
         node_communities: dict[str, list[dict[str, str]]] = defaultdict(list)
-        __levels = defaultdict(int)
+        __levels = defaultdict(set)
         for partition in community_mapping:
             level_key = partition.level
             cluster_id = partition.cluster
             node_communities[partition.node].append(
                 {"level": level_key, "cluster": cluster_id}
             )
-            __levels[level_key] += 1
+            __levels[level_key].add(cluster_id)
         node_communities = dict(node_communities)
-        logger.info(f"Each level has nodes: {dict(__levels)}")
-        self._graph = graph
+        __levels = {k: len(v) for k, v in __levels.items()}
+        logger.info(f"Each level has communities: {dict(__levels)}")
         self._cluster_data_to_subgraphs(node_communities)
 
     async def _node2vec_embed(self):

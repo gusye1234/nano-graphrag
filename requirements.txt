@@ -4,4 +4,3 @@ tiktoken
 pymilvus
 networkx
 graspologic
-nest_asyncio

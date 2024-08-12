@@ -15,10 +15,9 @@ import numpy as np
 logger = logging.getLogger("nano-graphrag")
 ENCODER = None
 
-import nest_asyncio
-
-nest_asyncio.apply()
-logger.debug("Apply nest_asyncio patch")
+# TODO using nest_asyncio may cause deadlocks after the program is done, need to fix
+# import nest_asyncio
+# nest_asyncio.apply()
 
 
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
@@ -113,16 +112,21 @@ class EmbeddingFunc:
 
 
 # Decorators ------------------------------------------------------------------------
-def limit_async_func_call(max_size: int):
+def limit_async_func_call(max_size: int, waitting_time: float = 0.01):
     """Add restriction of maximum async calling times for a async func"""
 
     def final_decro(func):
-        sem = asyncio.Semaphore(max_size)
+        """Not using async.Semaphore to aovid use nest-asyncio"""
+        __current_size = 0
 
         @wraps(func)
         async def wait_func(*args, **kwargs):
-            async with sem:
-                result = await func(*args, **kwargs)
+            nonlocal __current_size
+            while __current_size >= max_size:
+                await asyncio.sleep(waitting_time)
+            __current_size += 1
+            result = await func(*args, **kwargs)
+            __current_size -= 1
             return result
 
         return wait_func

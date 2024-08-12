@@ -6,6 +6,7 @@ from collections import Counter, defaultdict
 from ._utils import (
     encode_string_by_tiktoken,
     decode_tokens_by_tiktoken,
+    compute_mdhash_id,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     is_float_regex,
@@ -14,7 +15,12 @@ from ._utils import (
     logger,
 )
 from ._llm import gpt_4o_complete
-from .base import BaseGraphStorage, BaseKVStorage, SingleCommunitySchema
+from .base import (
+    BaseGraphStorage,
+    BaseKVStorage,
+    BaseVectorStorage,
+    SingleCommunitySchema,
+)
 from .prompt import PROMPTS, GRAPH_FIELD_SEP
 
 openai_async_client = AsyncOpenAI()
@@ -118,13 +124,13 @@ async def _merge_nodes_then_upsert(
     knwoledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
-    already_entities = []
+    already_entitiy_types = []
     already_source_ids = []
     already_description = []
 
     already_node = await knwoledge_graph_inst.get_node(entity_name)
     if already_node is not None:
-        already_entities.append(entity_name)
+        already_entitiy_types.append(already_node["entity_type"])
         already_source_ids.extend(
             [
                 i.strip()
@@ -135,7 +141,9 @@ async def _merge_nodes_then_upsert(
         already_description.append(already_node["description"])
 
     entity_type = sorted(
-        Counter([dp["entity_type"] for dp in nodes_data] + already_entities).items(),
+        Counter(
+            [dp["entity_type"] for dp in nodes_data] + already_entitiy_types
+        ).items(),
         key=lambda x: x[1],
         reverse=True,
     )[0][0]
@@ -148,14 +156,17 @@ async def _merge_nodes_then_upsert(
     description = await _handle_entity_relation_summary(
         entity_name, description, global_config
     )
+    node_data = dict(
+        entity_type=entity_type,
+        description=description,
+        source_id=source_id,
+    )
     await knwoledge_graph_inst.upsert_node(
         entity_name,
-        node_data=dict(
-            entity_type=entity_type,
-            description=description,
-            source_id=source_id,
-        ),
+        node_data=node_data,
     )
+    node_data["entity_name"] = entity_name
+    return node_data
 
 
 async def _merge_edges_then_upsert(
@@ -214,6 +225,7 @@ async def _merge_edges_then_upsert(
 async def extract_entities(
     chunks: dict[str, dict],
     knwoledge_graph_inst: BaseGraphStorage,
+    entity_vdb: BaseVectorStorage,
     global_config: dict,
 ) -> BaseGraphStorage:
     use_llm_func: callable = global_config["best_model_func"]
@@ -298,7 +310,7 @@ async def extract_entities(
         for k, v in m_edges.items():
             # it's undirected graph
             maybe_edges[tuple(sorted(k))].extend(v)
-    await asyncio.gather(
+    all_entities_data = await asyncio.gather(
         *[
             _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
             for k, v in maybe_nodes.items()
@@ -310,6 +322,15 @@ async def extract_entities(
             for k, v in maybe_edges.items()
         ]
     )
+    if entity_vdb is not None:
+        data_for_vdb = {
+            compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
+                "content": dp["entity_name"] + dp["description"],
+                "entity_name": dp["entity_name"],
+            }
+            for dp in all_entities_data
+        }
+        await entity_vdb.insert(data_for_vdb)
     return knwoledge_graph_inst
 
 
