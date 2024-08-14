@@ -88,7 +88,7 @@ def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]
 
 def list_of_list_to_csv(data: list[list]):
     return "\n".join(
-        [",".join([str(data_dd) for data_dd in data_d]) for data_d in data]
+        [",\t".join([str(data_dd) for data_dd in data_d]) for data_d in data]
     )
 
 

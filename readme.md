@@ -34,7 +34,7 @@
   - [x] Community Report
 - [ ] Query
   - [ ] Global
-  - [ ] Local
+  - [x] Local
 
 
 
@@ -56,7 +56,11 @@ pip install -e .
 
 
 
-## Quick Start - Not yet
+## Quick Start
+
+> [!TIP]
+>
+> Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`
 
 download a copy of A Christmas Carol by Charles Dickens:
 
@@ -67,17 +71,32 @@ curl https://raw.githubusercontent.com/gusye1234/nano-graphrag/main/tests/mock_d
 Use the below python snippet:
 
 ```python
-from nano_graphrag import GraphRAG
+from nano_graphrag import GraphRAG, QueryParam
 
 graph_func = GraphRAG(working_dir="./dickens")
 
 with open("./book.txt") as f
     graph_func.insert(f.read())
 
+# Perform global graphrag search
 print(graph_func.query("What are the top themes in this story?"))
+# Perform local graphrag search
+print(graph_func.query("What are the top themes in this story?", param=QueryParam(mode="local")))
 ```
 
 Next time you initialize a `GraphRAG` from the same `working_dir`, it will reload all the contexts automatically.
+
+### Incremental Insert
+
+`nano-graphrag` supports incremental insert, no duplicated computation or data will be added:
+
+```python
+with open("./book.txt") as f
+		book = f.read()
+		half_len = len(book) // 2
+    graph_func.insert(book[:half_len])
+    graph_func.insert(book[half_len:])
+```
 
 ### Async Support
 
@@ -91,7 +110,9 @@ await graph_func.aquery(...)
 
 ### Available Parameters
 
-In IDE/VSCode, hovering your cursor on `GraphRAG` to see all the available parameters.
+`GraphRAG` and `QueryParam` are `dataclass` in Python.
+
+In IDE/VSCode, hovering your cursor on `GraphRAG` and `QueryParam` to see all the available parameters. 
 
 
 
@@ -117,6 +138,8 @@ You can replace all storage-related components to your own implementation, `nano
 
 
 
-## Benchmark - Not yet
+## Benchmark
 
-...
+- [benchmark for English](./benchmark-en.md)
+- [benchmark for Chinese](./benchmark-zh.md)
+

@@ -545,31 +545,158 @@ async def _find_most_related_text_unit_from_entities(
     return all_text_units
 
 
+async def _find_most_related_edges_from_entities(
+    node_datas: list[dict],
+    query_param: QueryParam,
+    knowledge_graph_inst: BaseGraphStorage,
+):
+    all_related_edges = await asyncio.gather(
+        *[knowledge_graph_inst.get_node_edges(dp["entity_name"]) for dp in node_datas]
+    )
+    all_edges = set()
+    for this_edges in all_related_edges:
+        all_edges.update(this_edges)
+    all_edges = list(all_edges)
+    all_edges_pack = await asyncio.gather(
+        *[knowledge_graph_inst.get_edge(e[0], e[1]) for e in all_edges]
+    )
+    all_edges_degree = await asyncio.gather(
+        *[knowledge_graph_inst.edge_degree(e[0], e[1]) for e in all_edges]
+    )
+    all_edges_data = [
+        {"src_tgt": k, "rank": d, **v}
+        for k, v, d in zip(all_edges, all_edges_pack, all_edges_degree)
+        if v is not None
+    ]
+    all_edges_data = sorted(
+        all_edges_data, key=lambda x: (x["rank"], x["weight"]), reverse=True
+    )
+    all_edges_data = truncate_list_by_token_size(
+        all_edges_data,
+        key=lambda x: x["description"],
+        max_token_size=query_param.local_max_token_for_local_context,
+    )
+    return all_edges_data
+
+
+async def _build_local_query_context(
+    query,
+    knowledge_graph_inst: BaseGraphStorage,
+    entities_vdb: BaseVectorStorage,
+    community_reports: BaseKVStorage[CommunitySchema],
+    text_chunks_db: BaseKVStorage[TextChunkSchema],
+    query_param: QueryParam,
+):
+    results = await entities_vdb.query(query, top_k=query_param.top_k)
+    if not len(results):
+        return None
+    node_datas = await asyncio.gather(
+        *[knowledge_graph_inst.get_node(r["entity_name"]) for r in results]
+    )
+    if not all([n is not None for n in node_datas]):
+        logger.warning("Some nodes are missing, maybe the storage is damaged")
+    node_degrees = await asyncio.gather(
+        *[knowledge_graph_inst.node_degree(r["entity_name"]) for r in results]
+    )
+    node_datas = [
+        {**n, "entity_name": k["entity_name"], "rank": d}
+        for k, n, d in zip(results, node_datas, node_degrees)
+        if n is not None
+    ]
+    use_communities = await _find_most_related_community_from_entities(
+        node_datas, query_param, community_reports
+    )
+    use_text_units = await _find_most_related_text_unit_from_entities(
+        node_datas, query_param, text_chunks_db, knowledge_graph_inst
+    )
+    use_relations = await _find_most_related_edges_from_entities(
+        node_datas, query_param, knowledge_graph_inst
+    )
+
+    entites_section_list = [["id", "entity", "type", "description", "rank"]]
+    for i, n in enumerate(node_datas):
+        entites_section_list.append(
+            [
+                i,
+                n["entity_name"],
+                n.get("entity_type", "UNKNOWN"),
+                n.get("description", "UNKNOWN"),
+                n["rank"],
+            ]
+        )
+    entities_context = list_of_list_to_csv(entites_section_list)
+
+    relations_section_list = [
+        ["id", "source", "target", "description", "weight", "rank"]
+    ]
+    for i, e in enumerate(use_relations):
+        relations_section_list.append(
+            [
+                i,
+                e["src_tgt"][0],
+                e["src_tgt"][1],
+                e["description"],
+                e["weight"],
+                e["rank"],
+            ]
+        )
+    relations_context = list_of_list_to_csv(relations_section_list)
+
+    communities_section_list = [["id", "content"]]
+    for i, c in enumerate(use_communities):
+        communities_section_list.append([i, c["report_string"]])
+    communities_context = list_of_list_to_csv(communities_section_list)
+
+    text_units_section_list = [["id", "content"]]
+    for i, t in enumerate(use_text_units):
+        text_units_section_list.append([i, t["content"]])
+    text_units_context = list_of_list_to_csv(text_units_section_list)
+    return f"""
+-----Reports-----
+```csv
+{communities_context}
+```
+-----Entities-----
+```csv
+{entities_context}
+```
+-----Relationships-----
+```csv
+{relations_context}
+```
+-----Sources-----
+```csv
+{text_units_context}
+```
+"""
+
+
 async def local_query(
     query,
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     entities_vdb: BaseVectorStorage,
     community_reports: BaseKVStorage[CommunitySchema],
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
     global_config: dict,
-):
-    results = await entities_vdb.query(query, top_k=query_param.top_k)
-    node_datas = await asyncio.gather(
-        *[knwoledge_graph_inst.get_node(r["entity_name"]) for r in results]
+) -> str:
+    use_model_func = global_config["best_model_func"]
+    context = await _build_local_query_context(
+        query,
+        knowledge_graph_inst,
+        entities_vdb,
+        community_reports,
+        text_chunks_db,
+        query_param,
     )
-    if not all([n is not None for n in node_datas]):
-        logger.warning("Some nodes are missing, maybe the storage is damaged")
-    node_datas = zip(results, node_datas)
-    node_datas = [n for n in node_datas if n[1] is not None]
-    node_datas = [{**n[1], "entity_name": n[0]["entity_name"]} for n in node_datas]
-    use_communities = await _find_most_related_community_from_entities(
-        node_datas, query_param, community_reports
+    if context is None:
+        return "No results found"
+    sys_prompt_temp = PROMPTS["local_rag_response"]
+    sys_prompt = sys_prompt_temp.format(
+        context_data=context, response_type=query_param.response_type
     )
-    use_text_units = await _find_most_related_text_unit_from_entities(
-        node_datas, query_param, text_chunks_db, knwoledge_graph_inst
+    response = await use_model_func(
+        query,
+        system_prompt=sys_prompt,
     )
-    "Reports"
-    "Sources"
-    ""
-    return ""
+    return response

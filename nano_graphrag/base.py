@@ -9,6 +9,7 @@ from ._utils import EmbeddingFunc
 @dataclass
 class QueryParam:
     mode: Literal["local", "global"] = "global"
+    response_type: str = "Multiple Paragraphs"
     level: int = 2
     top_k: int = 10
     # local search
@@ -16,9 +17,6 @@ class QueryParam:
     local_max_token_for_local_context: int = 4800  # 12000 * 0.4
     local_max_token_for_community_report: int = 1200  # 12000 * 0.1
     local_community_single_one: bool = True
-
-    def __post_init__(self):
-        assert self.mode in ["global", "local"], "mode should be global or local"
 
 
 TextChunkSchema = TypedDict(
