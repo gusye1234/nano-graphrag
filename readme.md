@@ -17,7 +17,7 @@
 
 😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality.
 
-🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **700 lines of code**.
+🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
 👌 Small yet **scalable**, **asynchronous** and **fully typed**
 
@@ -92,8 +92,8 @@ Next time you initialize a `GraphRAG` from the same `working_dir`, it will reloa
 
 ```python
 with open("./book.txt") as f
-		book = f.read()
-		half_len = len(book) // 2
+    book = f.read()
+    half_len = len(book) // 2
     graph_func.insert(book[:half_len])
     graph_func.insert(book[half_len:])
 ```
