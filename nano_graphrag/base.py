@@ -1,7 +1,30 @@
-import numpy as np
-from typing import Union, TypedDict
 from dataclasses import dataclass, field
+from typing import TypedDict, Union, Literal, Generic, TypeVar
+
+import numpy as np
+
 from ._utils import EmbeddingFunc
+
+
+@dataclass
+class QueryParam:
+    mode: Literal["local", "global"] = "global"
+    level: int = 2
+    top_k: int = 10
+    # local search
+    local_max_token_for_text_unit: int = 6000  # 12000 * 0.5
+    local_max_token_for_local_context: int = 4800  # 12000 * 0.4
+    local_max_token_for_community_report: int = 1200  # 12000 * 0.1
+    local_community_single_one: bool = True
+
+    def __post_init__(self):
+        assert self.mode in ["global", "local"], "mode should be global or local"
+
+
+TextChunkSchema = TypedDict(
+    "TextChunkSchema",
+    {"tokens": int, "content": str, "full_doc_id": str, "chunk_order_index": int},
+)
 
 SingleCommunitySchema = TypedDict(
     "SingleCommunitySchema",
@@ -13,6 +36,13 @@ SingleCommunitySchema = TypedDict(
         "chunk_ids": list[str],
     },
 )
+
+CommunitySchema = TypedDict(
+    "CommunitySchema",
+    {"report_string": str, "report_json": dict, "data": SingleCommunitySchema},
+)
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -37,7 +67,7 @@ class BaseVectorStorage(StorageNameSpace):
     async def query(self, query: str, top_k: int) -> list[dict]:
         raise NotImplementedError
 
-    async def insert(self, data: dict[str, dict]):
+    async def upsert(self, data: dict[str, dict]):
         """Use 'content' field from value for embedding, use key as id.
         If embedding_func is None, use 'embedding' field from value
         """
@@ -45,15 +75,15 @@ class BaseVectorStorage(StorageNameSpace):
 
 
 @dataclass
-class BaseKVStorage(StorageNameSpace):
-    async def get_by_id(self, id) -> Union[dict, None]:
+class BaseKVStorage(Generic[T], StorageNameSpace):
+    async def get_by_id(self, id) -> Union[T, None]:
         raise NotImplementedError
 
     async def filter_keys(self, data: list[str]) -> set[str]:
         """return un-exist keys"""
         raise NotImplementedError
 
-    async def upsert(self, data: dict[str, dict]):
+    async def upsert(self, data: dict[str, T]):
         raise NotImplementedError
 
     async def drop(self):
@@ -82,6 +112,11 @@ class BaseGraphStorage(StorageNameSpace):
     ) -> Union[dict, None]:
         raise NotImplementedError
 
+    async def get_node_edges(
+        self, source_node_id: str
+    ) -> Union[list[tuple[str, str]], None]:
+        raise NotImplementedError
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         raise NotImplementedError
 
@@ -94,7 +129,7 @@ class BaseGraphStorage(StorageNameSpace):
         raise NotImplementedError
 
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
-        """refer official graphrag: index/to create_final_communities"""
+        """Return the community representation with report and nodes"""
         raise NotImplementedError
 
     async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:

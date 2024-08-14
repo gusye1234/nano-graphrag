@@ -1,20 +1,28 @@
-import os
 import asyncio
-from typing import Type, cast
+import json
+import os
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from dataclasses import dataclass, field, asdict
 from functools import partial
+from typing import Literal, Type, cast
+from collections import Counter
+
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
-from ._utils import (
-    limit_async_func_call,
-    generate_id,
-    compute_mdhash_id,
-    EmbeddingFunc,
-    logger,
+from ._op import (
+    chunking_by_token_size,
+    extract_entities,
+    generate_community_report,
+    local_query,
 )
 from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
-from ._op import chunking_by_token_size, extract_entities, generate_community_report
-from .base import BaseGraphStorage, BaseVectorStorage, BaseKVStorage, StorageNameSpace
+from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
+from .base import (
+    BaseGraphStorage,
+    BaseKVStorage,
+    BaseVectorStorage,
+    StorageNameSpace,
+    QueryParam,
+)
 
 
 @dataclass
@@ -61,7 +69,7 @@ class GraphRAG:
     # text embedding
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 16
-    embedding_func_max_async: int = 8
+    embedding_func_max_async: int = 16
 
     # LLM
     best_model_func: callable = gpt_4o_complete
@@ -77,7 +85,8 @@ class GraphRAG:
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
     enable_llm_cache: bool = False
 
-    backup_params: dict = field(default_factory=dict)
+    # extension
+    addon_params: dict = field(default_factory=dict)
 
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
@@ -131,30 +140,29 @@ class GraphRAG:
             partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
 
-    async def aquery(self, query: str, mode: str = "global", level=2, top_k=10):
-        if mode == "local" and not self.enable_local:
+    def insert(self, string_or_strings):
+        return asyncio.run(self.ainsert(string_or_strings))
+
+    def query(self, query: str, param: QueryParam = QueryParam()):
+        return asyncio.run(self.aquery(query, param))
+
+    async def aquery(self, query: str, param: QueryParam = QueryParam()):
+        if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
-        if mode == "local":
-            results = await self.entities_vdb.query(query, top_k=top_k)
-
-            node_datas = await asyncio.gather(
-                *[
-                    self.chunk_entity_relation_graph.get_node(r["entity_name"])
-                    for r in results
-                ]
+        if param.mode == "local":
+            return await local_query(
+                query,
+                self.chunk_entity_relation_graph,
+                self.entities_vdb,
+                self.community_reports,
+                self.text_chunks,
+                param,
+                asdict(self),
             )
-            assert all(
-                [n is not None for n in node_datas]
-            ), "Some nodes are missing, maybe the storage is damaged"
-
-            return ""
-        elif mode == "global":
+        elif param.mode == "global":
             return await self.best_model_func(query)
         else:
-            raise ValueError(f"Unknown mode {mode}")
-
-    def query(self, query: str, mode: str = "global", level=2, top_k=10):
-        return asyncio.run(self.aquery(query, mode=mode, level=level, top_k=top_k))
+            raise ValueError(f"Unknown mode {param.mode}")
 
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):
@@ -218,7 +226,7 @@ class GraphRAG:
 
         # ---------- commit upsertings and indexing
         await self.full_docs.upsert(new_docs)
-        await self.text_chunks.upsert(chunks)
+        await self.text_chunks.upsert(inserting_chunks)
         await self._insert_done()
 
     async def _insert_done(self):
@@ -238,6 +246,3 @@ class GraphRAG:
 
     async def _query_done(self):
         pass
-
-    def insert(self, string_or_strings):
-        return asyncio.run(self.ainsert(string_or_strings))

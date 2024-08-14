@@ -1,14 +1,14 @@
 import numpy as np
 from openai import AsyncOpenAI
-from .base import BaseKVStorage
-from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
 
-openai_async_client = AsyncOpenAI()
+from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
+from .base import BaseKVStorage
 
 
 async def openai_complete_if_cache(
     model, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
+    openai_async_client = AsyncOpenAI()
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
@@ -58,6 +58,7 @@ async def gpt_4o_mini_complete(
 
 @wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
 async def openai_embedding(texts: list[str]) -> np.ndarray:
+    openai_async_client = AsyncOpenAI()
     response = await openai_async_client.embeddings.create(
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )

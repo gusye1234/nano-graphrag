@@ -1,4 +1,5 @@
 import os
+
 from nano_graphrag import GraphRAG
 
 with open("./tests/mock_data.txt", encoding="utf-8-sig") as f:

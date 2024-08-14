@@ -1,18 +1,20 @@
-import os
-import html
 import asyncio
-import numpy as np
+import html
 import json
-import networkx as nx
+import os
 from collections import defaultdict
-from typing import Union, Any, cast
 from dataclasses import dataclass
+from typing import Any, Union, cast
+
+import networkx as nx
+import numpy as np
 from pymilvus import MilvusClient
-from ._utils import load_json, write_json, logger, generate_id
+
+from ._utils import load_json, logger, write_json
 from .base import (
-    BaseVectorStorage,
-    BaseKVStorage,
     BaseGraphStorage,
+    BaseKVStorage,
+    BaseVectorStorage,
     SingleCommunitySchema,
 )
 from .prompt import GRAPH_FIELD_SEP
@@ -71,7 +73,7 @@ class MilvusLiteStorge(BaseVectorStorage):
             dimension=self.embedding_func.embedding_dim,
         )
 
-    async def insert(self, data: dict[str, dict]):
+    async def upsert(self, data: dict[str, dict]):
         logger.info(f"Inserting {len(data)} vectors to {self.namespace}")
         list_data = [
             {
@@ -91,7 +93,7 @@ class MilvusLiteStorge(BaseVectorStorage):
         embeddings = np.concatenate(embeddings_list)
         for i, d in enumerate(list_data):
             d["vector"] = embeddings[i]
-        results = self._client.insert(collection_name=self.namespace, data=list_data)
+        results = self._client.upsert(collection_name=self.namespace, data=list_data)
         return results
 
     async def query(self, query, top_k=5):
@@ -101,6 +103,7 @@ class MilvusLiteStorge(BaseVectorStorage):
             data=embedding,
             limit=top_k,
             output_fields=list(self.meta_fields),
+            search_params={"metric_type": "COSINE", "params": {"radius": 0.2}},
         )
         return [
             {**dp["entity"], "id": dp["id"], "distance": dp["distance"]}
@@ -209,6 +212,11 @@ class NetworkXStorage(BaseGraphStorage):
     ) -> Union[dict, None]:
         return self._graph.edges.get((source_node_id, target_node_id))
 
+    async def get_node_edges(self, source_node_id: str):
+        if self._graph.has_node(source_node_id):
+            return list(self._graph.edges(source_node_id))
+        return None
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         self._graph.add_node(node_id, **node_data)
 
@@ -221,11 +229,6 @@ class NetworkXStorage(BaseGraphStorage):
         if algorithm not in self._clustering_algorithms:
             raise ValueError(f"Clustering algorithm {algorithm} not supported")
         await self._clustering_algorithms[algorithm]()
-
-    async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:
-        if algorithm not in self._node_embed_algorithms:
-            raise ValueError(f"Node embedding algorithm {algorithm} not supported")
-        return await self._node_embed_algorithms[algorithm]()
 
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
         results = defaultdict(
@@ -286,6 +289,11 @@ class NetworkXStorage(BaseGraphStorage):
         __levels = {k: len(v) for k, v in __levels.items()}
         logger.info(f"Each level has communities: {dict(__levels)}")
         self._cluster_data_to_subgraphs(node_communities)
+
+    async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:
+        if algorithm not in self._node_embed_algorithms:
+            raise ValueError(f"Node embedding algorithm {algorithm} not supported")
+        return await self._node_embed_algorithms[algorithm]()
 
     async def _node2vec_embed(self):
         from graspologic import embed

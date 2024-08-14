@@ -1,16 +1,16 @@
-import os
-import re
+import asyncio
 import html
 import json
 import logging
-import asyncio
-import tiktoken
-import nanoid
+import os
+import re
+from dataclasses import dataclass
+from functools import wraps
 from hashlib import md5
 from typing import Any
-from functools import wraps
-from dataclasses import dataclass
+
 import numpy as np
+import tiktoken
 
 logger = logging.getLogger("nano-graphrag")
 ENCODER = None
@@ -36,8 +36,14 @@ def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
     return content
 
 
-def generate_id(prefix: str = "", size=16):
-    return prefix + nanoid.generate(size=size)
+def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
+    """Truncate a list of data by token size"""
+    tokens = 0
+    for i, data in enumerate(list_data):
+        tokens += len(encode_string_by_tiktoken(key(data)))
+        if tokens > max_token_size:
+            return list_data[:i]
+    return list_data
 
 
 def compute_mdhash_id(content, prefix: str = ""):
