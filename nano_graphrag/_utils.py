@@ -118,7 +118,7 @@ class EmbeddingFunc:
 
 
 # Decorators ------------------------------------------------------------------------
-def limit_async_func_call(max_size: int, waitting_time: float = 0.01):
+def limit_async_func_call(max_size: int, waitting_time: float = 0.001):
     """Add restriction of maximum async calling times for a async func"""
 
     def final_decro(func):

@@ -7,13 +7,13 @@ from openai import AsyncOpenAI
 
 from ._llm import gpt_4o_complete
 from ._utils import (
+    logger,
     clean_str,
     compute_mdhash_id,
     decode_tokens_by_tiktoken,
     encode_string_by_tiktoken,
     is_float_regex,
     list_of_list_to_csv,
-    logger,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     truncate_list_by_token_size,
@@ -241,7 +241,10 @@ async def extract_entities(
     continue_prompt = PROMPTS["entiti_continue_extraction"]
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]
 
+    already_processed = 0
+
     async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]):
+        nonlocal already_processed
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
@@ -293,6 +296,8 @@ async def extract_entities(
                 maybe_edges[(if_relation["src_id"], if_relation["tgt_id"])].append(
                     if_relation
                 )
+        already_processed += 1
+        print(f"Processed {already_processed} chunks\r", end="", flush=True)
         return dict(maybe_nodes), dict(maybe_edges)
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
@@ -332,7 +337,9 @@ async def extract_entities(
 
 
 async def _pack_single_community_describe(
-    knwoledge_graph_inst: BaseGraphStorage, community: SingleCommunitySchema
+    knwoledge_graph_inst: BaseGraphStorage,
+    community: SingleCommunitySchema,
+    max_token_size: int = 12000,
 ) -> str:
     nodes_in_order = sorted(community["nodes"])
     edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
@@ -355,6 +362,10 @@ async def _pack_single_community_describe(
         ]
         for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
     ]
+    nodes_list_data = sorted(nodes_list_data, key=lambda x: x[-1], reverse=True)
+    nodes_list_data = truncate_list_by_token_size(
+        nodes_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
+    )
     edges_list_data = [
         [
             i,
@@ -365,7 +376,10 @@ async def _pack_single_community_describe(
         ]
         for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
     ]
-
+    edges_list_data = sorted(edges_list_data, key=lambda x: x[-1], reverse=True)
+    edges_list_data = truncate_list_by_token_size(
+        edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
+    )
     nodes_describe = list_of_list_to_csv([node_fields] + nodes_list_data)
     edges_describe = list_of_list_to_csv([edge_fields] + edges_list_data)
 
@@ -414,14 +428,20 @@ async def generate_community_report(
     community_keys, community_values = list(communities_schema.keys()), list(
         communities_schema.values()
     )
+    already_processed = 0
 
     async def _form_single_community_report(community: SingleCommunitySchema):
+        nonlocal already_processed
         describe = await _pack_single_community_describe(
-            knwoledge_graph_inst, community
+            knwoledge_graph_inst,
+            community,
+            max_token_size=global_config["best_model_max_token_size"],
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
         data = json.loads(response)
+        already_processed += 1
+        print(f"Processed {already_processed} communities\r", end="", flush=True)
         return data
 
     communities_reports = await asyncio.gather(
@@ -555,7 +575,7 @@ async def _find_most_related_edges_from_entities(
     )
     all_edges = set()
     for this_edges in all_related_edges:
-        all_edges.update(this_edges)
+        all_edges.update([tuple(sorted(e)) for e in this_edges])
     all_edges = list(all_edges)
     all_edges_pack = await asyncio.gather(
         *[knowledge_graph_inst.get_edge(e[0], e[1]) for e in all_edges]

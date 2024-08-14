@@ -68,16 +68,16 @@ class GraphRAG:
 
     # text embedding
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
-    embedding_batch_num: int = 16
+    embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
 
     # LLM
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
-    best_model_max_async: int = 16
+    best_model_max_async: int = 25
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_token_size: int = 32768
-    cheap_model_max_async: int = 16
+    cheap_model_max_async: int = 25
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
@@ -209,20 +209,24 @@ class GraphRAG:
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
         # ---------- extract/summary entity and upsert to graph
+        logger.info("[Entity Extraction]...")
         self.chunk_entity_relation_graph = await extract_entities(
             inserting_chunks,
             knwoledge_graph_inst=self.chunk_entity_relation_graph,
             entity_vdb=self.entities_vdb,
             global_config=asdict(self),
         )
-        logger.info("[Entity Extraction] Done")
+        if self.llm_response_cache is not None:
+            await self.llm_response_cache.index_done_callback()
 
         # ---------- update clusterings of graph
+        logger.info("[Community Report]...")
         await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
         await generate_community_report(
             self.community_reports, self.chunk_entity_relation_graph, asdict(self)
         )
-        logger.info("[Community Report] Done")
+        if self.llm_response_cache is not None:
+            await self.llm_response_cache.index_done_callback()
 
         # ---------- commit upsertings and indexing
         await self.full_docs.upsert(new_docs)

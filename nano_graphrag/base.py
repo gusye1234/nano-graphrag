@@ -16,7 +16,7 @@ class QueryParam:
     local_max_token_for_text_unit: int = 6000  # 12000 * 0.5
     local_max_token_for_local_context: int = 4800  # 12000 * 0.4
     local_max_token_for_community_report: int = 1200  # 12000 * 0.1
-    local_community_single_one: bool = True
+    local_community_single_one: bool = False
 
 
 TextChunkSchema = TypedDict(

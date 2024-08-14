@@ -2,6 +2,8 @@
 - We use `61b5eea34783c58074b3c53f1689ad8a5ba6b6ee` commit of [Official GraphRAG implementation](https://github.com/microsoft/graphrag/tree/main)
 - Both GraphRAG and `nano-graphrag` use OpenAI Embedding and `gpt-4o`.
 - Not Cache for both. On the same device and network connection.
+- GrapgRAG Max Async API request: 25
+- `nano-graphrag` Max Async API request: 16
 
 ## Index Benchmark
 

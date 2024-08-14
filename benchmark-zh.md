@@ -1,12 +1,45 @@
-- We use [三国演义](https://github.com/naosense/Yiya/raw/master/book/%E4%B8%89%E5%9B%BD%E6%BC%94%E4%B9%89.txt) by 罗贯中 as the benchmark corpus. 
+- We use [三国演义](https://github.com/tennessine/corpus/blob/master/%E4%B8%89%E5%9B%BD%E6%BC%94%E4%B9%89.txt) by 罗贯中 as the benchmark corpus. 
 - We use `61b5eea34783c58074b3c53f1689ad8a5ba6b6ee` commit of [Official GraphRAG implementation](https://github.com/microsoft/graphrag/tree/main)
 - Both GraphRAG and `nano-graphrag` use OpenAI Embedding and `gpt-4o`.
 - Not Cache for both. 
 - On the same device and network connection.
+- GrapgRAG Max Async API request: 25
+- `nano-graphrag` Max Async API request: 16
 
 ## Index Benchmark
 
-TODO
+Both are suck, more than 20 minutes.
 
 ## Local Search Results
+
+GraphRAG: "大乔和曹操的关系"
+
+```
+大乔与曹操之间的关系在历史和文学中被描绘为复杂且多维的，尽管直接的互动可能并不频繁。大乔，作为东吴孙策的妻子，以及其美貌和与三国时期重要人物的关联而闻名。曹操，作为三国时期的关键政治和军事领导者，其与大乔的关系主要通过他与东吴的关系以及对大乔及其家族的兴趣来体现。
+
+首先，大乔的美貌在三国时期广为人知，甚至引起了曹操的注意。据记载，曹操曾有意俘获大乔以供己用，这一点体现了曹操对大乔的个人兴趣，尽管这种兴趣可能更多地是基于她的美貌和象征意义，而非两人之间有实质性的个人关系 [Data: Entities (266)]。
+
+其次，大乔作为孙策的妻子，自然成为了孙家与东吴势力中的一员。孙策和孙权是曹操在政治和军事上的对手，这使得大乔与曹操之间存在着间接的敌对关系。曹操对东吴的军事行动，包括对孙权的攻击，间接地影响到了大乔及其家族的安全和利益 [Data: Entities (266)]。
+
+最后，尽管直接的文献记录可能不多，大乔的地位和她所处的时代背景使她与曹操之间的关系充满了历史和文化上的意义。她的故事和曹操的野心相交织，展现了三国时期女性角色与政治军事活动之间的复杂联系。
+
+综上所述，大乔与曹操之间的关系主要是通过她的家庭背景、曹操的政治军事活动，以及文化记忆中对她美貌的追捧来定义的。这种关系更多地体现在历史和文学的叙述中，而不是基于两人之间有直接的个人互动。
+```
+
+`nano-graphrag`: "大乔和曹操的关系"
+
+```
+# 大乔和曹操的关系
+## 大乔的背景
+大乔（Da Qiao）是江东乔公的长女，以其极美的容貌闻名于世。她最为著名的身份是孙策（Sun Ce）的妻子，这一身份在三国时期的政治和军事格局中也占有重要地位。周瑜特别提到她，显示她在周瑜与曹操局势中的重要性 [Data: Entities (1)]。
+## 曹操的欲望
+曹操（Cao Cao）对大乔的渴望主要源自其好色本性。他希望得到大乔和她的妹妹小乔，以满足个人欲望，并且认为获得她们可以帮助他提高政治地位和享乐。曹操曾发誓希望能得到江东二乔（大乔和小乔），并将她们置于铜雀台上，以乐晚年 [Data: Relationships (6, 7); Entities (1, 2)]。
+## 谋略与政治
+在三国时期的权谋斗争中，诸葛亮曾提议使用美人计，将大乔和小乔送给曹操，以此来使曹操班师回朝，减少对东吴的威胁。这一提议显示出大乔在权谋中的重要角色以及她可能对大局产生的影响 [Data: Sources (0); Relationships (12)]。
+## 曹操的策略和行动
+尽管曹操对大乔有很大的兴趣，但实际行动中的证据有限。周瑜得知曹操对大乔的意图后，表达了强烈的反对，并与诸葛亮商议对策，以确保她和小乔的安全 [Data: Sources (2)]。周瑜明确表示大乔是孙策的正妻，而小乔是他的妻子，拒绝将她们送给曹操。
+## 总结
+总体而言，曹操和大乔没有直接的互动记录，但曹操对大乔的欲望及其可能带来的政治影响却是不容忽视的。大乔作为江东乔公的长女，其美貌和身份使她成为多方势力争夺的对象，但她与曹操的关系主要体现在曹操的欲望和诸葛亮、周瑜等人的权谋计划中。
+曹操对大乔的欲望和权谋体现了三国时期复杂的政治动态，同时也揭示了美人计在当时战略中的重要性 [Data: Relationships (6, 12, 13); Entities (1); Sources (0, 2)].
+```
 

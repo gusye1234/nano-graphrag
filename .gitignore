@@ -2,7 +2,9 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 test_cache.json
 run_test.py
+run_test_zh.py
 nano_graphrag_cache*/
+*.txt
 tests/original_workflow.txt
 ### Python ###
 # Byte-compiled / optimized / DLL files
