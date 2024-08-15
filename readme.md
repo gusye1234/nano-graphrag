@@ -15,26 +15,11 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
-😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality.
+😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Known Issues)).
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet **scalable**, **asynchronous** and **fully typed**
-
-
-
-## TODO before publishing
-
-- [x] Index
-  - [x] Chunking
-  - [x] Entity extraction
-  - [x] Entity summary
-  - [x] Compute communities
-  - [x] Entities Embedding
-  - [x] Community Report
-- [ ] Query
-  - [ ] Global
-  - [x] Local
+👌 Small yet [**scalable**](#Advanced), **[asynchronous](#Async Support)** and **fully typed**
 
 
 
@@ -110,19 +95,17 @@ await graph_func.aquery(...)
 
 ### Available Parameters
 
-`GraphRAG` and `QueryParam` are `dataclass` in Python.
-
-In IDE/VSCode, hovering your cursor on `GraphRAG` and `QueryParam` to see all the available parameters. 
+`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters!
 
 
 
-## Advanced - Prompts
+## Advanced
+
+### Prompt
 
 `nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
 
-
-
-## Advanced -  Storage
+### Storage
 
 You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
 
@@ -136,6 +119,35 @@ You can replace all storage-related components to your own implementation, `nano
   - By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
   - `GraphRAG(.., graph_storage_cls=YOURS,...)`
 
+You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
+
+### LLM
+
+In `nano-graphrag`, we requires two types of LLM, a great one and a cheap one. The former is used to plan and respond, the latter is used to summary. By default, the great one is `gpt-4o` and the cheap one is `gpt-4o-mini`
+
+You can implement your own LLM function (refer to `_llm.gpt_4o_complete`):
+
+```python
+async def my_llm_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+  # pop cache KV database if any
+  hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
+  # the rest kwargs are for calling LLM, for example, `max_tokens=xxx`
+	...
+  # YOUR LLM calling
+  response = await call_your_LLM(messages, **kwargs)
+  return response
+```
+
+Replace the default one with:
+
+```python
+# Adjust the max token size or the max async requests if needed
+GraphRAG(best_model_func=my_llm_complete, best_model_max_token_size=..., best_model_max_async=...)
+GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap_model_max_async=...)
+```
+
 
 
 ## Benchmark
@@ -143,3 +155,9 @@ You can replace all storage-related components to your own implementation, `nano
 - [benchmark for English](./benchmark-en.md)
 - [benchmark for Chinese](./benchmark-zh.md)
 
+
+
+## Known Issues
+
+- `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
+- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the most important and central communites and return the response in one LLM-calling.

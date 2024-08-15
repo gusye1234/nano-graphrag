@@ -13,6 +13,7 @@ from ._op import (
     extract_entities,
     generate_community_report,
     local_query,
+    global_query,
 )
 from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
 from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
@@ -150,7 +151,7 @@ class GraphRAG:
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
         if param.mode == "local":
-            return await local_query(
+            response = await local_query(
                 query,
                 self.chunk_entity_relation_graph,
                 self.entities_vdb,
@@ -160,9 +161,19 @@ class GraphRAG:
                 asdict(self),
             )
         elif param.mode == "global":
-            return await self.best_model_func(query)
+            response = await global_query(
+                query,
+                self.chunk_entity_relation_graph,
+                self.entities_vdb,
+                self.community_reports,
+                self.text_chunks,
+                param,
+                asdict(self),
+            )
         else:
             raise ValueError(f"Unknown mode {param.mode}")
+        await self._query_done()
+        return response
 
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):

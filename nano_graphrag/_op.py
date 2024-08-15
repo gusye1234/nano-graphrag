@@ -448,11 +448,7 @@ async def generate_community_report(
         *[_form_single_community_report(c) for c in community_values]
     )
     community_datas = {
-        k: {
-            "report_string": _community_report_json_to_str(r),
-            "report_json": r,
-            "data": v,
-        }
+        k: {"report_string": _community_report_json_to_str(r), "report_json": r, **v}
         for k, r, v in zip(community_keys, communities_reports, community_values)
     }
     await community_report_kv.upsert(community_datas)
@@ -632,7 +628,9 @@ async def _build_local_query_context(
     use_relations = await _find_most_related_edges_from_entities(
         node_datas, query_param, knowledge_graph_inst
     )
-
+    logger.info(
+        f"Using {len(node_datas)} entites, {len(use_communities)} communities, {len(use_relations)} relations, {len(use_text_units)} text units"
+    )
     entites_section_list = [["id", "entity", "type", "description", "rank"]]
     for i, n in enumerate(node_datas):
         entites_section_list.append(
@@ -714,6 +712,77 @@ async def local_query(
     sys_prompt_temp = PROMPTS["local_rag_response"]
     sys_prompt = sys_prompt_temp.format(
         context_data=context, response_type=query_param.response_type
+    )
+    response = await use_model_func(
+        query,
+        system_prompt=sys_prompt,
+    )
+    return response
+
+
+async def global_query(
+    query,
+    knowledge_graph_inst: BaseGraphStorage,
+    entities_vdb: BaseVectorStorage,
+    community_reports: BaseKVStorage[CommunitySchema],
+    text_chunks_db: BaseKVStorage[TextChunkSchema],
+    query_param: QueryParam,
+    global_config: dict,
+) -> str:
+    community_schema = await knowledge_graph_inst.community_schema()
+    community_schema = {
+        k: v for k, v in community_schema.items() if v["level"] <= query_param.level
+    }
+    if not len(community_schema):
+        return "No results found"
+    use_model_func = global_config["best_model_func"]
+
+    sorted_community_schemas = sorted(
+        community_schema.items(),
+        key=lambda x: x[1]["occurrence"],
+        reverse=True,
+    )
+    sorted_community_schemas = sorted_community_schemas[
+        : query_param.global_max_conside_community
+    ]
+    community_datas = await community_reports.get_by_ids(
+        [k[0] for k in sorted_community_schemas]
+    )
+    community_datas = [c for c in community_datas if c is not None]
+    community_datas = [
+        c
+        for c in community_datas
+        if c["report_json"].get("rating", 0) >= query_param.global_min_community_rating
+    ]
+    community_datas = sorted(
+        community_datas,
+        key=lambda x: (x["occurrence"], x["report_json"].get("rating", 0)),
+        reverse=True,
+    )
+    community_truncated_datas = truncate_list_by_token_size(
+        community_datas,
+        key=lambda x: x["report_string"],
+        max_token_size=query_param.global_max_token_for_community_report,
+    )
+    logger.info(
+        f"Revtrieved {len(community_datas)} communities, truncated to {len(community_truncated_datas)}"
+    )
+    print([c["occurrence"] for c in community_truncated_datas])
+    print([c["report_json"]["rating"] for c in community_truncated_datas])
+    communities_section_list = [["id", "content", "rating", "importance"]]
+    for i, c in enumerate(community_truncated_datas):
+        communities_section_list.append(
+            [
+                i,
+                c["report_string"],
+                c["report_json"].get("rating", 0),
+                c["occurrence"],
+            ]
+        )
+    community_context = list_of_list_to_csv(communities_section_list)
+    sys_prompt_temp = PROMPTS["global_rag_response"]
+    sys_prompt = sys_prompt_temp.format(
+        report_data=community_context, response_type=query_param.response_type
     )
     response = await use_model_func(
         query,

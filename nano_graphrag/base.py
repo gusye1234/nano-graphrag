@@ -10,13 +10,17 @@ from ._utils import EmbeddingFunc
 class QueryParam:
     mode: Literal["local", "global"] = "global"
     response_type: str = "Multiple Paragraphs"
-    level: int = 2
-    top_k: int = 10
+    level: int = 4
+    top_k: int = 20
     # local search
-    local_max_token_for_text_unit: int = 6000  # 12000 * 0.5
+    local_max_token_for_text_unit: int = 4000  # 12000 * 0.33
     local_max_token_for_local_context: int = 4800  # 12000 * 0.4
-    local_max_token_for_community_report: int = 1200  # 12000 * 0.1
+    local_max_token_for_community_report: int = 3200  # 12000 * 0.27
     local_community_single_one: bool = False
+    # global search
+    global_min_community_rating: float = 0
+    global_max_conside_community: int = 256
+    global_max_token_for_community_report: int = 16384 * 2
 
 
 TextChunkSchema = TypedDict(
@@ -32,13 +36,15 @@ SingleCommunitySchema = TypedDict(
         "edges": list[list[str, str]],
         "nodes": list[str],
         "chunk_ids": list[str],
+        "occurrence": float,
     },
 )
 
-CommunitySchema = TypedDict(
-    "CommunitySchema",
-    {"report_string": str, "report_json": dict, "data": SingleCommunitySchema},
-)
+
+class CommunitySchema(SingleCommunitySchema):
+    report_string: str
+    report_json: dict
+
 
 T = TypeVar("T")
 
@@ -74,7 +80,15 @@ class BaseVectorStorage(StorageNameSpace):
 
 @dataclass
 class BaseKVStorage(Generic[T], StorageNameSpace):
-    async def get_by_id(self, id) -> Union[T, None]:
+    async def all_keys(self) -> list[str]:
+        raise NotImplementedError
+
+    async def get_by_id(self, id: str) -> Union[T, None]:
+        raise NotImplementedError
+
+    async def get_by_ids(
+        self, ids: list[str], fields: Union[set[str], None] = None
+    ) -> list[Union[T, None]]:
         raise NotImplementedError
 
     async def filter_keys(self, data: list[str]) -> set[str]:

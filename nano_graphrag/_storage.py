@@ -28,11 +28,26 @@ class JsonKVStorage(BaseKVStorage):
         self._data = load_json(self._file_name) or {}
         logger.info(f"Load KV {self.namespace} with {len(self._data)} data")
 
+    async def all_keys(self) -> list[str]:
+        return list(self._data.keys())
+
     async def index_done_callback(self):
         write_json(self._data, self._file_name)
 
     async def get_by_id(self, id):
         return self._data.get(id, None)
+
+    async def get_by_ids(self, ids, fields=None):
+        if fields is None:
+            return [self._data.get(id, None) for id in ids]
+        return [
+            (
+                {k: v for k, v in self._data[id].items() if k in fields}
+                if self._data.get(id, None)
+                else None
+            )
+            for id in ids
+        ]
 
     async def filter_keys(self, data: list[str]) -> set[str]:
         return set([s for s in data if s not in self._data])
@@ -233,9 +248,15 @@ class NetworkXStorage(BaseGraphStorage):
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
         results = defaultdict(
             lambda: dict(
-                level=None, title=None, edges=set(), nodes=set(), chunk_ids=set()
+                level=None,
+                title=None,
+                edges=set(),
+                nodes=set(),
+                chunk_ids=set(),
+                occurrence=0.0,
             )
         )
+        max_num_ids = 0
         for node_id, node_data in self._graph.nodes(data=True):
             if "clusters" not in node_data:
                 continue
@@ -254,11 +275,13 @@ class NetworkXStorage(BaseGraphStorage):
                 results[cluster_key]["chunk_ids"].update(
                     node_data["source_id"].split(GRAPH_FIELD_SEP)
                 )
+                max_num_ids = max(max_num_ids, len(results[cluster_key]["chunk_ids"]))
         for k, v in results.items():
             v["edges"] = list(v["edges"])
             v["edges"] = [list(e) for e in v["edges"]]
             v["nodes"] = list(v["nodes"])
             v["chunk_ids"] = list(v["chunk_ids"])
+            v["occurrence"] = len(v["chunk_ids"]) / max_num_ids
         return dict(results)
 
     def _cluster_data_to_subgraphs(self, cluster_data: dict[str, list[dict[str, str]]]):
