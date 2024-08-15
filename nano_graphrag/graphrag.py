@@ -75,10 +75,10 @@ class GraphRAG:
     # LLM
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
-    best_model_max_async: int = 25
+    best_model_max_async: int = 16
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_token_size: int = 32768
-    cheap_model_max_async: int = 25
+    cheap_model_max_async: int = 16
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage

@@ -10,7 +10,7 @@ from ._utils import EmbeddingFunc
 class QueryParam:
     mode: Literal["local", "global"] = "global"
     response_type: str = "Multiple Paragraphs"
-    level: int = 4
+    level: int = 2
     top_k: int = 20
     # local search
     local_max_token_for_text_unit: int = 4000  # 12000 * 0.33
@@ -19,8 +19,11 @@ class QueryParam:
     local_community_single_one: bool = False
     # global search
     global_min_community_rating: float = 0
-    global_max_conside_community: int = 256
-    global_max_token_for_community_report: int = 16384 * 2
+    global_max_conside_community: float = 512
+    global_max_token_for_community_report: int = 16384
+    global_special_community_map_llm_kwargs: dict = field(
+        default_factory=lambda: {"response_format": {"type": "json_object"}}
+    )
 
 
 TextChunkSchema = TypedDict(

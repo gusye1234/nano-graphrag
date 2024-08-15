@@ -1,9 +1,7 @@
 <div align="center">
   <h1>nano-GraphRAG</h1>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
-   <p><strong>⚠️ It's still under development and not ready yet ⚠️</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/in-developing-red">
     <img src="https://img.shields.io/badge/python->=3.9-blue">
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
@@ -13,13 +11,14 @@
 
 
 
+
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
 😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Known Issues)).
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**scalable**](#Advanced), **[asynchronous](#Async Support)** and **fully typed**
+👌 Small yet [**scalable**](#Advanced), [**asynchronous**](#Async Support) and **fully typed**
 
 
 
@@ -65,7 +64,8 @@ with open("./book.txt") as f
 
 # Perform global graphrag search
 print(graph_func.query("What are the top themes in this story?"))
-# Perform local graphrag search
+
+# Perform local graphrag search (I think is better and more scalable one)
 print(graph_func.query("What are the top themes in this story?", param=QueryParam(mode="local")))
 ```
 
@@ -95,7 +95,7 @@ await graph_func.aquery(...)
 
 ### Available Parameters
 
-`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters!
+`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters! 
 
 
 
@@ -104,6 +104,13 @@ await graph_func.aquery(...)
 ### Prompt
 
 `nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
+
+Some important prompts:
+
+- `PROMPTS["entity_extraction"]` is used to extract the entities and relations from a text chunk.
+- `PROMPTS["community_report"]` is used to organize and summary the graph cluster's description.
+- `PROMPTS["local_rag_response"]` is the system prompt template of the local search generation.
+- `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
 
 ### Storage
 
@@ -148,6 +155,22 @@ GraphRAG(best_model_func=my_llm_complete, best_model_max_token_size=..., best_mo
 GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap_model_max_async=...)
 ```
 
+### Embeding
+
+You can replace the default embedding functions with any `_utils.EmbedddingFunc` instance.
+
+For example, the default one is using OpenAI embedding API:
+
+```python
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+async def openai_embedding(texts: list[str]) -> np.ndarray:
+    openai_async_client = AsyncOpenAI()
+    response = await openai_async_client.embeddings.create(
+        model="text-embedding-3-small", input=texts, encoding_format="float"
+    )
+    return np.array([dp.embedding for dp in response.data])
+```
+
 
 
 ## Benchmark
@@ -160,4 +183,5 @@ GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap
 ## Known Issues
 
 - `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
-- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the most important and central communites and return the response in one LLM-calling.
+- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_conside_community` to control, default to 512 communities).
+- `nano-graphrag`'s Data Source Id is local, meaning it always starts at 0 at any response and you have to remap it into the current session. So it's kinda useless right now.

@@ -296,7 +296,6 @@ class NetworkXStorage(BaseGraphStorage):
             graph,
             max_cluster_size=self.global_config["max_graph_cluster_size"],
             random_seed=self.global_config["graph_cluster_seed"],
-            is_weighted=True,
         )
 
         node_communities: dict[str, list[dict[str, str]]] = defaultdict(list)

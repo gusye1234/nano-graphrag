@@ -708,7 +708,7 @@ async def local_query(
         query_param,
     )
     if context is None:
-        return "No results found"
+        return PROMPTS["fail_response"]
     sys_prompt_temp = PROMPTS["local_rag_response"]
     sys_prompt = sys_prompt_temp.format(
         context_data=context, response_type=query_param.response_type
@@ -718,6 +718,50 @@ async def local_query(
         system_prompt=sys_prompt,
     )
     return response
+
+
+async def _map_global_communities(
+    query: str,
+    communities_data: list[CommunitySchema],
+    query_param: QueryParam,
+    global_config: dict,
+):
+    use_model_func = global_config["best_model_func"]
+    community_groups = []
+    while len(communities_data):
+        this_group = truncate_list_by_token_size(
+            communities_data,
+            key=lambda x: x["report_string"],
+            max_token_size=query_param.global_max_token_for_community_report,
+        )
+        community_groups.append(this_group)
+        communities_data = communities_data[len(this_group) :]
+
+    async def _process(community_truncated_datas: list[CommunitySchema]) -> dict:
+        communities_section_list = [["id", "content", "rating", "importance"]]
+        for i, c in enumerate(community_truncated_datas):
+            communities_section_list.append(
+                [
+                    i,
+                    c["report_string"],
+                    c["report_json"].get("rating", 0),
+                    c["occurrence"],
+                ]
+            )
+        community_context = list_of_list_to_csv(communities_section_list)
+        sys_prompt_temp = PROMPTS["global_map_rag_points"]
+        sys_prompt = sys_prompt_temp.format(context_data=community_context)
+        response = await use_model_func(
+            query,
+            system_prompt=sys_prompt,
+            **query_param.global_special_community_map_llm_kwargs,
+        )
+        response = json.loads(response)
+        return response.get("points", [])
+
+    logger.info(f"Grouping to {len(community_groups)} groups for global search")
+    responses = await asyncio.gather(*[_process(c) for c in community_groups])
+    return responses
 
 
 async def global_query(
@@ -734,7 +778,7 @@ async def global_query(
         k: v for k, v in community_schema.items() if v["level"] <= query_param.level
     }
     if not len(community_schema):
-        return "No results found"
+        return PROMPTS["fail_response"]
     use_model_func = global_config["best_model_func"]
 
     sorted_community_schemas = sorted(
@@ -759,33 +803,48 @@ async def global_query(
         key=lambda x: (x["occurrence"], x["report_json"].get("rating", 0)),
         reverse=True,
     )
-    community_truncated_datas = truncate_list_by_token_size(
-        community_datas,
-        key=lambda x: x["report_string"],
+    logger.info(f"Revtrieved {len(community_datas)} communities")
+
+    map_communities_points = await _map_global_communities(
+        query, community_datas, query_param, global_config
+    )
+    final_support_points = []
+    for i, mc in enumerate(map_communities_points):
+        for point in mc:
+            if "description" not in point:
+                continue
+            final_support_points.append(
+                {
+                    "analyst": i,
+                    "answer": point["description"],
+                    "score": point.get("score", 1),
+                }
+            )
+    final_support_points = [p for p in final_support_points if p["score"] > 0]
+    if not len(final_support_points):
+        return PROMPTS["fail_response"]
+    final_support_points = sorted(
+        final_support_points, key=lambda x: x["score"], reverse=True
+    )
+    final_support_points = truncate_list_by_token_size(
+        final_support_points,
+        key=lambda x: x["answer"],
         max_token_size=query_param.global_max_token_for_community_report,
     )
-    logger.info(
-        f"Revtrieved {len(community_datas)} communities, truncated to {len(community_truncated_datas)}"
-    )
-    print([c["occurrence"] for c in community_truncated_datas])
-    print([c["report_json"]["rating"] for c in community_truncated_datas])
-    communities_section_list = [["id", "content", "rating", "importance"]]
-    for i, c in enumerate(community_truncated_datas):
-        communities_section_list.append(
-            [
-                i,
-                c["report_string"],
-                c["report_json"].get("rating", 0),
-                c["occurrence"],
-            ]
+    points_context = []
+    for dp in final_support_points:
+        points_context.append(
+            f"""----Analyst {dp['analyst']}----
+Importance Score: {dp['score']}
+{dp['answer']}
+"""
         )
-    community_context = list_of_list_to_csv(communities_section_list)
-    sys_prompt_temp = PROMPTS["global_rag_response"]
-    sys_prompt = sys_prompt_temp.format(
-        report_data=community_context, response_type=query_param.response_type
-    )
+    points_context = "\n".join(points_context)
+    sys_prompt_temp = PROMPTS["global_reduce_rag_response"]
     response = await use_model_func(
         query,
-        system_prompt=sys_prompt,
+        sys_prompt_temp.format(
+            report_data=points_context, response_type=query_param.response_type
+        ),
     )
     return response
