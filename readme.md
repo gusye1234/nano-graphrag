@@ -14,11 +14,11 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
-😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Known Issues)).
+😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**scalable**](#Advanced), [**asynchronous**](#Async Support) and **fully typed**
+👌 Small yet [**scalable**](#Advanced), [**asynchronous**](#Async) and **fully typed**
 
 
 
@@ -83,7 +83,7 @@ with open("./book.txt") as f
     graph_func.insert(book[half_len:])
 ```
 
-### Async Support
+### Async
 
 For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
 
@@ -180,7 +180,7 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 
 
 
-## Known Issues
+## Issues
 
 - `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
 - `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_conside_community` to control, default to 512 communities).
