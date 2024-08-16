@@ -44,7 +44,7 @@ pip install -e .
 
 > [!TIP]
 >
-> Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`
+> Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`. If you like to use another LLM, please have a look at [LLM component](#LLM)
 
 download a copy of A Christmas Carol by Charles Dickens:
 
@@ -161,7 +161,7 @@ GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap
 
 You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model.
 
-### Embeding
+### Embedding
 
 You can replace the default embedding functions with any `_utils.EmbedddingFunc` instance.
 
