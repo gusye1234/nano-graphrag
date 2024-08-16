@@ -83,6 +83,10 @@ with open("./book.txt") as f
     graph_func.insert(book[half_len:])
 ```
 
+> `nano-graphrag` use md5-hash of the content as the key, so there is no duplicated chunk.
+>
+> However, each time you insert, the communities of graph will be re-computed and the community reports will be re-generated
+
 ### Async
 
 For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
@@ -171,6 +175,12 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
     return np.array([dp.embedding for dp in response.data])
 ```
 
+Replace default embedding function with:
+
+```python
+GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func_max_async=...)
+```
+
 
 
 ## Benchmark
@@ -189,7 +199,7 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 
 ## TODO in Next Version
 
->  If the checkbox is filled meaning someone is on it
+>  If a checkbox is filled meaning someone is on it
 
 - [ ] `nano-graphrag`'s Data Source Id is local, meaning it always starts at 0 at any response and you have to remap it into the current session. So it's kinda useless right now.
 - [ ] `nano-graphrag` truncates the community's raw description if it exceed the maximun context size when generating community report, while GraphRAG uses a sub-communities iterative summary to include all. 
