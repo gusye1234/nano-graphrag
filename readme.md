@@ -184,4 +184,15 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 
 - `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
 - `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_conside_community` to control, default to 512 communities).
-- `nano-graphrag`'s Data Source Id is local, meaning it always starts at 0 at any response and you have to remap it into the current session. So it's kinda useless right now.
+
+
+
+## TODO in Next Version
+
+>  If the checkbox is filled meaning someone is on it
+
+- [ ] `nano-graphrag`'s Data Source Id is local, meaning it always starts at 0 at any response and you have to remap it into the current session. So it's kinda useless right now.
+- [ ] `nano-graphrag` truncates the community's raw description if it exceed the maximun context size when generating community report, while GraphRAG uses a sub-communities iterative summary to include all. 
+- [ ] Add real benchmark with GraphRAG
+- [ ] Add new components, see [issue](https://github.com/gusye1234/nano-graphrag/issues/2)
+
