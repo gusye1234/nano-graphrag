@@ -29,8 +29,6 @@ from .base import (
 )
 from .prompt import GRAPH_FIELD_SEP, PROMPTS
 
-openai_async_client = AsyncOpenAI()
-
 
 def chunking_by_token_size(
     content: str, overlap_token_size=128, max_token_size=1024, tiktoken_model="gpt-4o"
