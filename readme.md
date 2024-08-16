@@ -59,7 +59,7 @@ from nano_graphrag import GraphRAG, QueryParam
 
 graph_func = GraphRAG(working_dir="./dickens")
 
-with open("./book.txt") as f
+with open("./book.txt") as f:
     graph_func.insert(f.read())
 
 # Perform global graphrag search
@@ -76,7 +76,7 @@ Next time you initialize a `GraphRAG` from the same `working_dir`, it will reloa
 `nano-graphrag` supports incremental insert, no duplicated computation or data will be added:
 
 ```python
-with open("./book.txt") as f
+with open("./book.txt") as f:
     book = f.read()
     half_len = len(book) // 2
     graph_func.insert(book[:half_len])
