@@ -18,7 +18,7 @@
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**scalable**](#Advanced), [**asynchronous**](#Async) and **fully typed**
+👌 Small yet [**portable**](#Advances), [**asynchronous**](#Async) and fully typed.
 
 
 
@@ -42,9 +42,13 @@ pip install -e .
 
 ## Quick Start
 
+**Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+
 > [!TIP]
 >
-> Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`. If you like to use another LLM, please have a look at [LLM component](#LLM)
+> If you like to use another LLM: [LLM component](#LLM).
+>
+> If you like to use another Embedding Model: [Embedding](#Embedding).
 
 download a copy of A Christmas Carol by Charles Dickens:
 
@@ -103,7 +107,7 @@ await graph_func.aquery(...)
 
 
 
-## Advanced
+## Advances
 
 ### Prompt
 
@@ -159,7 +163,7 @@ GraphRAG(best_model_func=my_llm_complete, best_model_max_token_size=..., best_mo
 GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap_model_max_async=...)
 ```
 
-You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model.
+You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model in `nano-graphrag`
 
 ### Embedding
 
@@ -182,6 +186,8 @@ Replace default embedding function with:
 ```python
 GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func_max_async=...)
 ```
+
+You can refer to an [example](./examples/using_local_embedding_model.py) that use `sentence-transformer` to locally compute embeddings.
 
 
 
