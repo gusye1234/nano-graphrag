@@ -3,7 +3,7 @@ import sys
 sys.path.append("..")
 import logging
 import numpy as np
-from nano_graphrag import GraphRAG
+from nano_graphrag import GraphRAG, QueryParam
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
 from sentence_transformers import SentenceTransformer
 
@@ -34,5 +34,5 @@ rag = GraphRAG(
 with open("../tests/mock_data.txt", encoding="utf-8-sig") as f:
     FAKE_TEXT = f.read()
 
-rag.insert(FAKE_TEXT)
-print(rag.query("What the main theme of this story?"))
+# rag.insert(FAKE_TEXT)
+print(rag.query("What the main theme of this story?", param=QueryParam(mode="local")))
