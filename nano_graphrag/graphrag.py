@@ -178,8 +178,6 @@ class GraphRAG:
     async def ainsert(self, string_or_strings):
         if isinstance(string_or_strings, str):
             string_or_strings = [string_or_strings]
-        # TODO: no incremental update for communities now, so just drop all
-        await self.community_reports.drop()
         # ---------- new docs
         new_docs = {
             compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
@@ -218,6 +216,9 @@ class GraphRAG:
             logger.warning(f"All chunks are already in the storage")
             return
         logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
+
+        # TODO: no incremental update for communities now, so just drop all
+        await self.community_reports.drop()
 
         # ---------- extract/summary entity and upsert to graph
         logger.info("[Entity Extraction]...")
