@@ -1,11 +1,10 @@
 import asyncio
-import json
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from functools import partial
-from typing import Literal, Type, cast
-from collections import Counter
+from typing import Type, cast
+
 
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._op import (
@@ -142,10 +141,12 @@ class GraphRAG:
         )
 
     def insert(self, string_or_strings):
-        return asyncio.run(self.ainsert(string_or_strings))
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self.ainsert(string_or_strings))
 
     def query(self, query: str, param: QueryParam = QueryParam()):
-        return asyncio.run(self.aquery(query, param))
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self.aquery(query, param))
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:

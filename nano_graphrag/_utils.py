@@ -15,10 +15,6 @@ import tiktoken
 logger = logging.getLogger("nano-graphrag")
 ENCODER = None
 
-# TODO using nest_asyncio may cause deadlocks after the program is done, need to fix
-# import nest_asyncio
-# nest_asyncio.apply()
-
 
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
     global ENCODER
