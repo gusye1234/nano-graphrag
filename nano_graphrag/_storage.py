@@ -76,6 +76,9 @@ class NanoVectorDBStorage(BaseVectorStorage):
 
     async def upsert(self, data: dict[str, dict]):
         logger.info(f"Inserting {len(data)} vectors to {self.namespace}")
+        if not len(data):
+            logger.warning("You insert an empty data to vector DB")
+            return []
         list_data = [
             {
                 "__id__": k,

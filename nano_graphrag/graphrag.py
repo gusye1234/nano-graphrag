@@ -228,13 +228,16 @@ class GraphRAG:
 
             # ---------- extract/summary entity and upsert to graph
             logger.info("[Entity Extraction]...")
-            self.chunk_entity_relation_graph = await extract_entities(
+            maybe_new_kg = await extract_entities(
                 inserting_chunks,
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,
                 global_config=asdict(self),
             )
-
+            if maybe_new_kg is None:
+                logger.warning("No new entities found")
+                return
+            self.chunk_entity_relation_graph = maybe_new_kg
             # ---------- update clusterings of graph
             logger.info("[Community Report]...")
             await self.chunk_entity_relation_graph.clustering(
