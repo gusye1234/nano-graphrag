@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from typing import Union
 from collections import Counter, defaultdict
 
 from openai import AsyncOpenAI
@@ -223,7 +224,7 @@ async def extract_entities(
     knwoledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     global_config: dict,
-) -> BaseGraphStorage:
+) -> Union[BaseGraphStorage, None]:
     use_llm_func: callable = global_config["best_model_func"]
     entity_extract_max_gleaning = global_config["entity_extract_max_gleaning"]
 
@@ -325,6 +326,9 @@ async def extract_entities(
             for k, v in maybe_edges.items()
         ]
     )
+    if not len(all_entities_data):
+        logger.warning("Didn't extract any entities, maybe your LLM is not working")
+        return None
     if entity_vdb is not None:
         data_for_vdb = {
             compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
