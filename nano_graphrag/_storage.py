@@ -8,7 +8,7 @@ from typing import Any, Union, cast
 
 import networkx as nx
 import numpy as np
-from pymilvus import MilvusClient
+from nano_vectordb import NanoVectorDB
 
 from ._utils import load_json, logger, write_json
 from .base import (
@@ -63,37 +63,23 @@ class JsonKVStorage(BaseKVStorage):
 
 
 @dataclass
-class MilvusLiteStorge(BaseVectorStorage):
-
-    @staticmethod
-    def create_collection_if_not_exist(
-        client: "MilvusClient", collection_name: str, **kwargs
-    ):
-        if client.has_collection(collection_name):
-            return
-        # TODO add constants for ID max length to 32
-        client.create_collection(
-            collection_name, max_length=32, id_type="string", **kwargs
-        )
+class NanoVectorDBStorage(BaseVectorStorage):
 
     def __post_init__(self):
 
         self._client_file_name = os.path.join(
-            self.global_config["working_dir"], "milvus_lite.db"
+            self.global_config["working_dir"], f"vdb_{self.namespace}.json"
         )
-        self._client = MilvusClient(self._client_file_name)
         self._max_batch_size = self.global_config["embedding_batch_num"]
-        MilvusLiteStorge.create_collection_if_not_exist(
-            self._client,
-            self.namespace,
-            dimension=self.embedding_func.embedding_dim,
+        self._client = NanoVectorDB(
+            self.embedding_func.embedding_dim, storage_file=self._client_file_name
         )
 
     async def upsert(self, data: dict[str, dict]):
         logger.info(f"Inserting {len(data)} vectors to {self.namespace}")
         list_data = [
             {
-                "id": k,
+                "__id__": k,
                 **{k1: v1 for k1, v1 in v.items() if k1 in self.meta_fields},
             }
             for k, v in data.items()
@@ -108,24 +94,24 @@ class MilvusLiteStorge(BaseVectorStorage):
         )
         embeddings = np.concatenate(embeddings_list)
         for i, d in enumerate(list_data):
-            d["vector"] = embeddings[i]
-        results = self._client.upsert(collection_name=self.namespace, data=list_data)
+            d["__vector__"] = embeddings[i]
+        results = self._client.upsert(datas=list_data)
         return results
 
-    async def query(self, query, top_k=5):
+    async def query(self, query: str, top_k=5):
         embedding = await self.embedding_func([query])
-        results = self._client.search(
-            collection_name=self.namespace,
-            data=embedding,
-            limit=top_k,
-            output_fields=list(self.meta_fields),
-            search_params={"metric_type": "COSINE", "params": {"radius": 0.2}},
+        embedding = embedding[0]
+        results = self._client.query(
+            query=embedding, top_k=top_k, better_than_threshold=0.2
         )
-        return [
-            {**dp["entity"], "id": dp["id"], "distance": dp["distance"]}
-            for dp in results[0]
+        results = [
+            {**dp, "id": dp["__id__"], "distance": dp["__metrics__"]} for dp in results
         ]
-    
+        return results
+
+    async def index_done_callback(self):
+        self._client.save()
+
 
 @dataclass
 class NetworkXStorage(BaseGraphStorage):
@@ -255,9 +241,11 @@ class NetworkXStorage(BaseGraphStorage):
                 nodes=set(),
                 chunk_ids=set(),
                 occurrence=0.0,
+                sub_communities=[],
             )
         )
         max_num_ids = 0
+        levels = defaultdict(set)
         for node_id, node_data in self._graph.nodes(data=True):
             if "clusters" not in node_data:
                 continue
@@ -267,6 +255,7 @@ class NetworkXStorage(BaseGraphStorage):
             for cluster in clusters:
                 level = cluster["level"]
                 cluster_key = str(cluster["cluster"])
+                levels[level].add(cluster_key)
                 results[cluster_key]["level"] = level
                 results[cluster_key]["title"] = f"Cluster {cluster_key}"
                 results[cluster_key]["nodes"].add(node_id)
@@ -277,6 +266,20 @@ class NetworkXStorage(BaseGraphStorage):
                     node_data["source_id"].split(GRAPH_FIELD_SEP)
                 )
                 max_num_ids = max(max_num_ids, len(results[cluster_key]["chunk_ids"]))
+
+        ordered_levels = sorted(levels.keys())
+        for i, curr_level in enumerate(ordered_levels[:-1]):
+            next_level = ordered_levels[i + 1]
+            this_level_comms = levels[curr_level]
+            next_level_comms = levels[next_level]
+            # compute the sub-communities by nodes intersection
+            for comm in this_level_comms:
+                results[comm]["sub_communities"] = [
+                    c
+                    for c in next_level_comms
+                    if results[c]["nodes"].issubset(results[comm]["nodes"])
+                ]
+
         for k, v in results.items():
             v["edges"] = list(v["edges"])
             v["edges"] = [list(e) for e in v["edges"]]

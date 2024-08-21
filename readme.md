@@ -2,12 +2,13 @@
   <h1>nano-GraphRAG</h1>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/python->=3.9-blue">
+    <img src="https://img.shields.io/badge/python->=3.9.11-blue">
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
   </p>
 </div>
+
 
 
 
@@ -119,22 +120,7 @@ Some important prompts:
 - `PROMPTS["community_report"]` is used to organize and summary the graph cluster's description.
 - `PROMPTS["local_rag_response"]` is the system prompt template of the local search generation.
 - `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
-
-### Storage
-
-You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
-
-- `base.BaseKVStorage` for storing key-json pairs of data. 
-  - By default we use disk file storage as the backend. 
-  -  `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
-- `base.BaseVectorStorage` for indexing embeddings. 
-  - By default we use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend.
-  - `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
-- `base.BaseGraphStorage` for storing knowledge graph. 
-  - By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
-  - `GraphRAG(.., graph_storage_cls=YOURS,...)`
-
-You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
+- `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
 
 ### LLM
 
@@ -188,6 +174,28 @@ GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func
 ```
 
 You can refer to an [example](./examples/using_local_embedding_model.py) that use `sentence-transformer` to locally compute embeddings.
+
+### Storage
+
+You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
+
+**`base.BaseKVStorage` for storing key-json pairs of data** 
+
+- By default we use disk file storage as the backend. 
+- `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
+
+**`base.BaseVectorStorage` for indexing embeddings**
+
+- By default we use [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) as the backend.
+- Check out this [example](./examples/using_milvus_as_vectorDB.py) that use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend (not available in Windows).
+- `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
+
+**`base.BaseGraphStorage` for storing knowledge graph**
+
+- By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
+- `GraphRAG(.., graph_storage_cls=YOURS,...)`
+
+You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
 
 
 
