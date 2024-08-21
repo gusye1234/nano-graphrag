@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.ipynb'
+      - './examples/**'
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.ipynb'
+      - './examples/**'
+
+jobs:
+  test:
+    name: Tests on ${{ matrix.os }} for ${{ matrix.python-version }}
+    strategy:
+      matrix:
+        python-version: [3.9]
+        os: [ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Lint with flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Build and Test
+        run: |
+          python -m pytest -o log_cli=true -o log_cli_level="INFO" -v ./
+    #   - name: Check codecov file
+    #     id: check_files
+    #     uses: andstor/file-existence-action@v1
+    #     with:
+    #       files: './coverage.xml'
+    #   - name: Upload coverage from test to Codecov
+    #     uses: codecov/codecov-action@v2
+    #     with:
+    #       file: ./coverage.xml
+    #       token: ${{ secrets.CODECOV_TOKEN }}

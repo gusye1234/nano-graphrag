@@ -266,4 +266,9 @@ class GraphRAG:
         await asyncio.gather(*tasks)
 
     async def _query_done(self):
-        pass
+        tasks = []
+        for storage_inst in [self.llm_response_cache]:
+            if storage_inst is None:
+                continue
+            tasks.append(cast(StorageNameSpace, storage_inst).index_done_callback())
+        await asyncio.gather(*tasks)
