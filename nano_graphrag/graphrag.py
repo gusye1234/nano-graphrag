@@ -6,7 +6,7 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
+from ._llm_new import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -14,7 +14,7 @@ from ._op import (
     local_query,
     global_query,
 )
-from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
+from ._storage import JsonKVStorage, NetworkXStorage, FAISSStorage
 from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
 from .base import (
     BaseGraphStorage,
@@ -81,7 +81,7 @@ class GraphRAG:
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
-    vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
+    vector_db_storage_cls: Type[BaseVectorStorage] = FAISSStorage
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
     enable_llm_cache: bool = False
 

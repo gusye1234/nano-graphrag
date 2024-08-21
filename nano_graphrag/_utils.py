@@ -47,7 +47,7 @@ def compute_mdhash_id(content, prefix: str = ""):
 
 
 def write_json(json_obj, file_name):
-    with open(file_name, "w") as f:
+    with open(file_name, "w", encoding='utf-8') as f:
         json.dump(json_obj, f, indent=2, ensure_ascii=False)
 
 
