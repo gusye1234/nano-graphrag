@@ -6,7 +6,7 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm_new import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
+from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._op import (
     chunking_by_token_size,
     extract_entities,
