@@ -177,74 +177,74 @@ class GraphRAG:
         return response
 
     async def ainsert(self, string_or_strings):
-        if isinstance(string_or_strings, str):
-            string_or_strings = [string_or_strings]
-        # ---------- new docs
-        new_docs = {
-            compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
-            for c in string_or_strings
-        }
-        _add_doc_keys = await self.full_docs.filter_keys(list(new_docs.keys()))
-        new_docs = {k: v for k, v in new_docs.items() if k in _add_doc_keys}
-        if not len(new_docs):
-            logger.warning(f"All docs are already in the storage")
-            return
-        logger.info(f"[New Docs] inserting {len(new_docs)} docs")
-
-        # ---------- chunking
-        inserting_chunks = {}
-        for doc_key, doc in new_docs.items():
-            chunks = {
-                compute_mdhash_id(dp["content"], prefix="chunk-"): {
-                    **dp,
-                    "full_doc_id": doc_key,
-                }
-                for dp in chunking_by_token_size(
-                    doc["content"],
-                    overlap_token_size=self.chunk_overlap_token_size,
-                    max_token_size=self.chunk_token_size,
-                    tiktoken_model=self.tiktoken_model_name,
-                )
+        try:
+            if isinstance(string_or_strings, str):
+                string_or_strings = [string_or_strings]
+            # ---------- new docs
+            new_docs = {
+                compute_mdhash_id(c.strip(), prefix="doc-"): {"content": c.strip()}
+                for c in string_or_strings
             }
-            inserting_chunks.update(chunks)
-        _add_chunk_keys = await self.full_docs.filter_keys(
-            list(inserting_chunks.keys())
-        )
-        inserting_chunks = {
-            k: v for k, v in inserting_chunks.items() if k in _add_chunk_keys
-        }
-        if not len(inserting_chunks):
-            logger.warning(f"All chunks are already in the storage")
-            return
-        logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
+            _add_doc_keys = await self.full_docs.filter_keys(list(new_docs.keys()))
+            new_docs = {k: v for k, v in new_docs.items() if k in _add_doc_keys}
+            if not len(new_docs):
+                logger.warning(f"All docs are already in the storage")
+                return
+            logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
-        # TODO: no incremental update for communities now, so just drop all
-        await self.community_reports.drop()
+            # ---------- chunking
+            inserting_chunks = {}
+            for doc_key, doc in new_docs.items():
+                chunks = {
+                    compute_mdhash_id(dp["content"], prefix="chunk-"): {
+                        **dp,
+                        "full_doc_id": doc_key,
+                    }
+                    for dp in chunking_by_token_size(
+                        doc["content"],
+                        overlap_token_size=self.chunk_overlap_token_size,
+                        max_token_size=self.chunk_token_size,
+                        tiktoken_model=self.tiktoken_model_name,
+                    )
+                }
+                inserting_chunks.update(chunks)
+            _add_chunk_keys = await self.full_docs.filter_keys(
+                list(inserting_chunks.keys())
+            )
+            inserting_chunks = {
+                k: v for k, v in inserting_chunks.items() if k in _add_chunk_keys
+            }
+            if not len(inserting_chunks):
+                logger.warning(f"All chunks are already in the storage")
+                return
+            logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
 
-        # ---------- extract/summary entity and upsert to graph
-        logger.info("[Entity Extraction]...")
-        self.chunk_entity_relation_graph = await extract_entities(
-            inserting_chunks,
-            knwoledge_graph_inst=self.chunk_entity_relation_graph,
-            entity_vdb=self.entities_vdb,
-            global_config=asdict(self),
-        )
-        if self.llm_response_cache is not None:
-            await self.llm_response_cache.index_done_callback()
+            # TODO: no incremental update for communities now, so just drop all
+            await self.community_reports.drop()
 
-        # ---------- update clusterings of graph
-        logger.info("[Community Report]...")
-        await self.chunk_entity_relation_graph.clustering(self.graph_cluster_algorithm)
-        await generate_community_report(
-            self.community_reports, self.chunk_entity_relation_graph, asdict(self)
-        )
-        if self.llm_response_cache is not None:
-            await self.llm_response_cache.index_done_callback()
+            # ---------- extract/summary entity and upsert to graph
+            logger.info("[Entity Extraction]...")
+            self.chunk_entity_relation_graph = await extract_entities(
+                inserting_chunks,
+                knwoledge_graph_inst=self.chunk_entity_relation_graph,
+                entity_vdb=self.entities_vdb,
+                global_config=asdict(self),
+            )
 
-        # ---------- commit upsertings and indexing
-        await self.full_docs.upsert(new_docs)
-        await self.text_chunks.upsert(inserting_chunks)
-        await self._insert_done()
+            # ---------- update clusterings of graph
+            logger.info("[Community Report]...")
+            await self.chunk_entity_relation_graph.clustering(
+                self.graph_cluster_algorithm
+            )
+            await generate_community_report(
+                self.community_reports, self.chunk_entity_relation_graph, asdict(self)
+            )
+
+            # ---------- commit upsertings and indexing
+            await self.full_docs.upsert(new_docs)
+            await self.text_chunks.upsert(inserting_chunks)
+        finally:
+            await self._insert_done()
 
     async def _insert_done(self):
         tasks = []
