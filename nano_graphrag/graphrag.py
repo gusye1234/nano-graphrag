@@ -83,7 +83,7 @@ class GraphRAG:
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
-    enable_llm_cache: bool = False
+    enable_llm_cache: bool = True
 
     # extension
     addon_params: dict = field(default_factory=dict)

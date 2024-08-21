@@ -2,12 +2,13 @@
   <h1>nano-GraphRAG</h1>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
   <p>
-    <img src="https://img.shields.io/badge/python->=3.9-blue">
+    <img src="https://img.shields.io/badge/python->=3.9.11-blue">
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
   </p>
 </div>
+
 
 
 
@@ -119,6 +120,7 @@ Some important prompts:
 - `PROMPTS["community_report"]` is used to organize and summary the graph cluster's description.
 - `PROMPTS["local_rag_response"]` is the system prompt template of the local search generation.
 - `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
+- `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
 
 ### Storage
 

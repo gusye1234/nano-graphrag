@@ -295,7 +295,10 @@ async def extract_entities(
                     if_relation
                 )
         already_processed += 1
-        print(f"Processed {already_processed} chunks\r", end="", flush=True)
+        now_ticks = PROMPTS["process_tickers"][
+            already_processed % len(PROMPTS["process_tickers"])
+        ]
+        print(f"{now_ticks} Processed {already_processed} chunks\r", end="", flush=True)
         return dict(maybe_nodes), dict(maybe_edges)
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
@@ -338,6 +341,7 @@ async def _pack_single_community_describe(
     knwoledge_graph_inst: BaseGraphStorage,
     community: SingleCommunitySchema,
     max_token_size: int = 12000,
+    already_reports: dict[str, CommunitySchema] = {},
 ) -> str:
     nodes_in_order = sorted(community["nodes"])
     edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
@@ -361,7 +365,7 @@ async def _pack_single_community_describe(
         for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
     ]
     nodes_list_data = sorted(nodes_list_data, key=lambda x: x[-1], reverse=True)
-    nodes_list_data = truncate_list_by_token_size(
+    nodes_may_truncate_list_data = truncate_list_by_token_size(
         nodes_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
     edges_list_data = [
@@ -375,11 +379,23 @@ async def _pack_single_community_describe(
         for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
     ]
     edges_list_data = sorted(edges_list_data, key=lambda x: x[-1], reverse=True)
-    edges_list_data = truncate_list_by_token_size(
+    edges_may_truncate_list_data = truncate_list_by_token_size(
         edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
-    nodes_describe = list_of_list_to_csv([node_fields] + nodes_list_data)
-    edges_describe = list_of_list_to_csv([edge_fields] + edges_list_data)
+    if len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
+        edges_list_data
+    ) > len(edges_may_truncate_list_data):
+        # If context is exceed the limit:
+        if not len(community["sub_communities"]):
+            pass
+        elif not len(already_reports):
+            logger.warning(
+                "unknown error for community reports, maybe the storage is damaged"
+            )
+        else:
+            pass
+    nodes_describe = list_of_list_to_csv([node_fields] + nodes_may_truncate_list_data)
+    edges_describe = list_of_list_to_csv([edge_fields] + edges_may_truncate_list_data)
 
     return f"""-----Entities-----
 ```csv
@@ -428,7 +444,9 @@ async def generate_community_report(
     )
     already_processed = 0
 
-    async def _form_single_community_report(community: SingleCommunitySchema):
+    async def _form_single_community_report(
+        community: SingleCommunitySchema, already_reports: dict[str, CommunitySchema]
+    ):
         nonlocal already_processed
         describe = await _pack_single_community_describe(
             knwoledge_graph_inst,
@@ -439,16 +457,47 @@ async def generate_community_report(
         response = await use_llm_func(prompt, **llm_extra_kwargs)
         data = json.loads(response)
         already_processed += 1
-        print(f"Processed {already_processed} communities\r", end="", flush=True)
+        now_ticks = PROMPTS["process_tickers"][
+            already_processed % len(PROMPTS["process_tickers"])
+        ]
+        print(
+            f"{now_ticks} Processed {already_processed} communities\r",
+            end="",
+            flush=True,
+        )
         return data
 
-    communities_reports = await asyncio.gather(
-        *[_form_single_community_report(c) for c in community_values]
-    )
-    community_datas = {
-        k: {"report_string": _community_report_json_to_str(r), "report_json": r, **v}
-        for k, r, v in zip(community_keys, communities_reports, community_values)
-    }
+    levels = sorted(set([c["level"] for c in community_values]), reverse=True)
+    logger.info(f"Generating by levels: {levels}")
+    community_datas = {}
+    for level in levels:
+        this_level_community_keys, this_level_community_values = zip(
+            *[
+                (k, v)
+                for k, v in zip(community_keys, community_values)
+                if v["level"] == level
+            ]
+        )
+        this_level_communities_reports = await asyncio.gather(
+            *[
+                _form_single_community_report(c, community_datas)
+                for c in this_level_community_values
+            ]
+        )
+        community_datas.update(
+            {
+                k: {
+                    "report_string": _community_report_json_to_str(r),
+                    "report_json": r,
+                    **v,
+                }
+                for k, r, v in zip(
+                    this_level_community_keys,
+                    this_level_communities_reports,
+                    this_level_community_values,
+                )
+            }
+        )
     await community_report_kv.upsert(community_datas)
 
 

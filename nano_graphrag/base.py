@@ -40,6 +40,7 @@ SingleCommunitySchema = TypedDict(
         "nodes": list[str],
         "chunk_ids": list[str],
         "occurrence": float,
+        "sub_communities": list[str],
     },
 )
 

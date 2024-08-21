@@ -567,3 +567,5 @@ Add sections and commentary to the response as appropriate for the length and fo
 """
 
 PROMPTS["fail_response"] = "Sorry, I'm not able to provide an answer to that question."
+
+PROMPTS["process_tickers"] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]

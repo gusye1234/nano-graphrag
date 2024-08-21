@@ -254,9 +254,11 @@ class NetworkXStorage(BaseGraphStorage):
                 nodes=set(),
                 chunk_ids=set(),
                 occurrence=0.0,
+                sub_communities=[],
             )
         )
         max_num_ids = 0
+        levels = defaultdict(set)
         for node_id, node_data in self._graph.nodes(data=True):
             if "clusters" not in node_data:
                 continue
@@ -266,6 +268,7 @@ class NetworkXStorage(BaseGraphStorage):
             for cluster in clusters:
                 level = cluster["level"]
                 cluster_key = str(cluster["cluster"])
+                levels[level].add(cluster_key)
                 results[cluster_key]["level"] = level
                 results[cluster_key]["title"] = f"Cluster {cluster_key}"
                 results[cluster_key]["nodes"].add(node_id)
@@ -276,6 +279,20 @@ class NetworkXStorage(BaseGraphStorage):
                     node_data["source_id"].split(GRAPH_FIELD_SEP)
                 )
                 max_num_ids = max(max_num_ids, len(results[cluster_key]["chunk_ids"]))
+
+        ordered_levels = sorted(levels.keys())
+        for i, curr_level in enumerate(ordered_levels[:-1]):
+            next_level = ordered_levels[i + 1]
+            this_level_comms = levels[curr_level]
+            next_level_comms = levels[next_level]
+            # compute the sub-communities by nodes intersection
+            for comm in this_level_comms:
+                results[comm]["sub_communities"] = [
+                    c
+                    for c in next_level_comms
+                    if results[c]["nodes"].issubset(results[comm]["nodes"])
+                ]
+
         for k, v in results.items():
             v["edges"] = list(v["edges"])
             v["edges"] = [list(e) for e in v["edges"]]
