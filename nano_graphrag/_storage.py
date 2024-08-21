@@ -18,8 +18,6 @@ from .base import (
     SingleCommunitySchema,
 )
 from .prompt import GRAPH_FIELD_SEP
-import faiss
-import pickle
 
 @dataclass
 class JsonKVStorage(BaseKVStorage):
