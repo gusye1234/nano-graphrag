@@ -122,22 +122,6 @@ Some important prompts:
 - `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
 - `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
 
-### Storage
-
-You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
-
-- `base.BaseKVStorage` for storing key-json pairs of data. 
-  - By default we use disk file storage as the backend. 
-  -  `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
-- `base.BaseVectorStorage` for indexing embeddings. 
-  - By default we use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend.
-  - `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
-- `base.BaseGraphStorage` for storing knowledge graph. 
-  - By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
-  - `GraphRAG(.., graph_storage_cls=YOURS,...)`
-
-You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
-
 ### LLM
 
 In `nano-graphrag`, we requires two types of LLM, a great one and a cheap one. The former is used to plan and respond, the latter is used to summary. By default, the great one is `gpt-4o` and the cheap one is `gpt-4o-mini`
@@ -190,6 +174,28 @@ GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func
 ```
 
 You can refer to an [example](./examples/using_local_embedding_model.py) that use `sentence-transformer` to locally compute embeddings.
+
+### Storage
+
+You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
+
+**`base.BaseKVStorage` for storing key-json pairs of data** 
+
+- By default we use disk file storage as the backend. 
+- `GraphRAG(.., key_string_value_json_storage_cls=YOURS,...)`
+
+**`base.BaseVectorStorage` for indexing embeddings**
+
+- By default we use [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) as the backend.
+- Check out this [example](./examples/using_milvus_as_vectorDB.py) that use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend (not available in Windows).
+- `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
+
+**`base.BaseGraphStorage` for storing knowledge graph**
+
+- By default we use [`networkx`](https://github.com/networkx/networkx) as the backend.
+- `GraphRAG(.., graph_storage_cls=YOURS,...)`
+
+You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
 
 
 

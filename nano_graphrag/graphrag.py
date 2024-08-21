@@ -14,7 +14,11 @@ from ._op import (
     local_query,
     global_query,
 )
-from ._storage import JsonKVStorage, MilvusLiteStorge, NetworkXStorage
+from ._storage import (
+    JsonKVStorage,
+    NanoVectorDBStorage,
+    NetworkXStorage,
+)
 from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
 from .base import (
     BaseGraphStorage,
@@ -81,7 +85,7 @@ class GraphRAG:
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
-    vector_db_storage_cls: Type[BaseVectorStorage] = MilvusLiteStorge
+    vector_db_storage_cls: Type[BaseVectorStorage] = NanoVectorDBStorage
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
     enable_llm_cache: bool = True
 
