@@ -459,7 +459,11 @@ async def generate_community_report(
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
-        data = json.loads(response)
+        try:
+            data = json.loads(response)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {response}")
+            raise e from None
         already_processed += 1
         now_ticks = PROMPTS["process_tickers"][
             already_processed % len(PROMPTS["process_tickers"])
