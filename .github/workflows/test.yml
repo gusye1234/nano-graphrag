@@ -8,7 +8,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - '**/*.ipynb'
-      - './examples/**'
+      - 'examples/**'
   pull_request:
     branches:
       - main
@@ -16,7 +16,7 @@ on:
     paths-ignore:
       - '**/*.md'
       - '**/*.ipynb'
-      - './examples/**'
+      - 'examples/**'
 
 jobs:
   test:
