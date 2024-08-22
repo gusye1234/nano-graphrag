@@ -209,7 +209,7 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 ## Issues
 
 - `nano-graphrag` didn't implement the `covariates` feature of `GraphRAG`
-- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_conside_community` to control, default to 512 communities).
+- `nano-graphrag` implements the global search different from the original. The original use a map-reduce-like style to fill all the communities into context, while `nano-graphrag` only use the top-K important and central communites (use `QueryParam.global_max_consider_community` to control, default to 512 communities).
 
 
 

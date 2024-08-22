@@ -19,7 +19,7 @@ class QueryParam:
     local_community_single_one: bool = False
     # global search
     global_min_community_rating: float = 0
-    global_max_conside_community: float = 512
+    global_max_consider_community: float = 512
     global_max_token_for_community_report: int = 16384
     global_special_community_map_llm_kwargs: dict = field(
         default_factory=lambda: {"response_format": {"type": "json_object"}}

@@ -838,7 +838,7 @@ async def global_query(
         reverse=True,
     )
     sorted_community_schemas = sorted_community_schemas[
-        : query_param.global_max_conside_community
+        : query_param.global_max_consider_community
     ]
     community_datas = await community_reports.get_by_ids(
         [k[0] for k in sorted_community_schemas]
