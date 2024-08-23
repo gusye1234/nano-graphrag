@@ -34,6 +34,8 @@ def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
 
 def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
     """Truncate a list of data by token size"""
+    if max_token_size <= 0:
+        return []
     tokens = 0
     for i, data in enumerate(list_data):
         tokens += len(encode_string_by_tiktoken(key(data)))
@@ -114,7 +116,7 @@ class EmbeddingFunc:
 
 
 # Decorators ------------------------------------------------------------------------
-def limit_async_func_call(max_size: int, waitting_time: float = 0.001):
+def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
     """Add restriction of maximum async calling times for a async func"""
 
     def final_decro(func):

@@ -341,6 +341,49 @@ async def extract_entities(
     return knwoledge_graph_inst
 
 
+def _pack_single_community_by_sub_communities(
+    community: SingleCommunitySchema,
+    max_token_size: int,
+    already_reports: dict[str, CommunitySchema],
+) -> tuple[str, int]:
+    # TODO
+    all_sub_communities = [
+        already_reports[k] for k in community["sub_communities"] if k in already_reports
+    ]
+    all_sub_communities = sorted(
+        all_sub_communities, key=lambda x: x["occurrence"], reverse=True
+    )
+    may_trun_all_sub_communities = truncate_list_by_token_size(
+        all_sub_communities,
+        key=lambda x: x["report_string"],
+        max_token_size=max_token_size,
+    )
+    sub_fields = ["id", "report", "rating", "importance"]
+    sub_communities_describe = list_of_list_to_csv(
+        [sub_fields]
+        + [
+            [
+                i,
+                c["report_string"],
+                c["report_json"].get("rating", -1),
+                c["occurrence"],
+            ]
+            for i, c in enumerate(may_trun_all_sub_communities)
+        ]
+    )
+    already_nodes = []
+    already_edges = []
+    for c in may_trun_all_sub_communities:
+        already_nodes.extend(c["nodes"])
+        already_edges.extend([tuple(e) for e in c["edges"]])
+    return (
+        sub_communities_describe,
+        len(encode_string_by_tiktoken(sub_communities_describe)),
+        set(already_nodes),
+        set(already_edges),
+    )
+
+
 async def _pack_single_community_describe(
     knwoledge_graph_inst: BaseGraphStorage,
     community: SingleCommunitySchema,
@@ -386,22 +429,52 @@ async def _pack_single_community_describe(
     edges_may_truncate_list_data = truncate_list_by_token_size(
         edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
-    if len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
+
+    truncated = len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
         edges_list_data
-    ) > len(edges_may_truncate_list_data):
-        # If context is exceed the limit:
-        if not len(community["sub_communities"]):
-            pass
-        elif not len(already_reports):
-            logger.warning(
-                "unknown error for community reports, maybe the storage is damaged"
+    ) > len(edges_may_truncate_list_data)
+
+    # If context is exceed the limit and have sub-communities:
+    report_describe = ""
+    if truncated and len(community["sub_communities"]) and len(already_reports):
+        logger.info(
+            f"Community {community['title']} exceeds the limit, using its sub-communities"
+        )
+        report_describe, report_size, contain_nodes, contain_edges = (
+            _pack_single_community_by_sub_communities(
+                community, max_token_size, already_reports
             )
-        else:
-            pass
+        )
+        report_exclude_nodes_list_data = [
+            n for n in nodes_list_data if n[1] not in contain_nodes
+        ]
+        report_include_nodes_list_data = [
+            n for n in nodes_list_data if n[1] in contain_nodes
+        ]
+        report_exclude_edges_list_data = [
+            e for e in edges_list_data if (e[1], e[2]) not in contain_edges
+        ]
+        report_include_edges_list_data = [
+            e for e in edges_list_data if (e[1], e[2]) in contain_edges
+        ]
+        # if report size is bigger than max_token_size, nodes and edges are []
+        nodes_may_truncate_list_data = truncate_list_by_token_size(
+            report_exclude_nodes_list_data + report_include_nodes_list_data,
+            key=lambda x: x[3],
+            max_token_size=(max_token_size - report_size) // 2,
+        )
+        edges_may_truncate_list_data = truncate_list_by_token_size(
+            report_exclude_edges_list_data + report_include_edges_list_data,
+            key=lambda x: x[3],
+            max_token_size=(max_token_size - report_size) // 2,
+        )
     nodes_describe = list_of_list_to_csv([node_fields] + nodes_may_truncate_list_data)
     edges_describe = list_of_list_to_csv([edge_fields] + edges_may_truncate_list_data)
-
-    return f"""-----Entities-----
+    return f"""-----Reports-----
+```csv
+{report_describe}
+```
+-----Entities-----
 ```csv
 {nodes_describe}
 ```
@@ -456,6 +529,7 @@ async def generate_community_report(
             knwoledge_graph_inst,
             community,
             max_token_size=global_config["best_model_max_token_size"],
+            already_reports=already_reports,
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
