@@ -217,8 +217,6 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 
 >  If a checkbox is filled meaning it's done.
 
-- [ ] `nano-graphrag`'s Data Source Id is local, meaning it always starts at 0 at any response and you have to remap it into the current session. So it's kinda useless right now.
-- [x] `nano-graphrag` truncates the community's raw description if it exceed the maximun context size when generating community report, while GraphRAG uses a sub-communities iterative summary to include all. 
 - [ ] Add real benchmark with GraphRAG
 - [ ] Add new components, see [issue](https://github.com/gusye1234/nano-graphrag/issues/2)
 
