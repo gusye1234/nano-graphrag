@@ -157,7 +157,7 @@ You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`de
 
 `nano-graphrag` introduces a post-process interface for you to convert the response to JSON. This func's signature is below:
 
-```	python 
+```python
 def YOUR_STRING_TO_JSON_FUNC(response: str) -> dict:
   "Convert the string response to JSON"
   ...
