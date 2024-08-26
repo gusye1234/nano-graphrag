@@ -110,6 +110,31 @@ await graph_func.aquery(...)
 
 ## Advances
 
+### Only query the related context
+
+`graph_func.query` return the final answer without streaming. 
+
+If you like to interagte `nano-graphrag` in your project, you can use `param=QueryParam(..., only_need_context=True,...)`, which will only return the retrieved context from graph, something like:
+
+````
+# Local mode
+-----Reports-----
+```csv
+id,	content
+0,	# FOX News and Key Figures in Media and Politics...
+1, ...
+```
+...
+
+# Global mode
+----Analyst 3----
+Importance Score: 100
+Donald J. Trump: Frequently discussed in relation to his political activities...
+...
+````
+
+You can integrate that context into your customized prompt.
+
 ### Prompt
 
 `nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
