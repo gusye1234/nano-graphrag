@@ -18,7 +18,6 @@ from ._utils import (
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     truncate_list_by_token_size,
-    locate_json_string_body_from_string,
 )
 from .base import (
     BaseGraphStorage,
@@ -514,6 +513,10 @@ async def generate_community_report(
 ):
     llm_extra_kwargs = global_config["special_community_report_llm_kwargs"]
     use_llm_func: callable = global_config["best_model_func"]
+    use_string_json_convert_func: callable = global_config[
+        "convert_response_to_json_func"
+    ]
+
     community_report_prompt = PROMPTS["community_report"]
 
     communities_schema = await knwoledge_graph_inst.community_schema()
@@ -534,14 +537,8 @@ async def generate_community_report(
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
-        
-        json_str = locate_json_string_body_from_string(response)
-        assert json_str is not None, f"Unable to parse JSON from response: {response}"
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {json_str}")
-            raise e from None
+
+        data = use_string_json_convert_func(response)
         already_processed += 1
         now_ticks = PROMPTS["process_tickers"][
             already_processed % len(PROMPTS["process_tickers"])
@@ -859,6 +856,7 @@ async def _map_global_communities(
     query_param: QueryParam,
     global_config: dict,
 ):
+    use_string_json_convert_func = global_config["convert_response_to_json_func"]
     use_model_func = global_config["best_model_func"]
     community_groups = []
     while len(communities_data):
@@ -889,13 +887,7 @@ async def _map_global_communities(
             system_prompt=sys_prompt,
             **query_param.global_special_community_map_llm_kwargs,
         )
-        json_str = locate_json_string_body_from_string(response)
-        assert json_str is not None, f"Unable to parse JSON from response: {response}"
-        try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {json_str}")
-            raise e from None
+        data = use_string_json_convert_func(response)
         return data.get("points", [])
 
     logger.info(f"Grouping to {len(community_groups)} groups for global search")

@@ -19,7 +19,13 @@ from ._storage import (
     NanoVectorDBStorage,
     NetworkXStorage,
 )
-from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
+from ._utils import (
+    EmbeddingFunc,
+    compute_mdhash_id,
+    limit_async_func_call,
+    convert_response_to_json,
+    logger,
+)
 from .base import (
     BaseGraphStorage,
     BaseKVStorage,
@@ -82,6 +88,7 @@ class GraphRAG:
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_token_size: int = 32768
     cheap_model_max_async: int = 16
+    chat_model_func: callable = gpt_4o_complete
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
@@ -91,6 +98,7 @@ class GraphRAG:
 
     # extension
     addon_params: dict = field(default_factory=dict)
+    convert_response_to_json_func: callable = convert_response_to_json
 
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
@@ -151,6 +159,9 @@ class GraphRAG:
     def query(self, query: str, param: QueryParam = QueryParam()):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
+
+    def chat(self, messages: list[str], param: QueryParam = QueryParam()):
+        pass
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:

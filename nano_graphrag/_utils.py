@@ -25,6 +25,17 @@ def locate_json_string_body_from_string(content: str) -> Union[str, None]:
         return None
 
 
+def convert_response_to_json(response: str) -> dict:
+    json_str = locate_json_string_body_from_string(response)
+    assert json_str is not None, f"Unable to parse JSON from response: {response}"
+    try:
+        data = json.loads(json_str)
+        return data
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON: {json_str}")
+        raise e from None
+
+
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
     global ENCODER
     if ENCODER is None:

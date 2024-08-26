@@ -151,6 +151,24 @@ GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap
 
 You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model in `nano-graphrag`
 
+#### Json Output
+
+`nano-graphrag` will use `best_model_func` to output JSON with params `"response_format": {"type": "json_object"}`. However there are some open-source model maybe produce unstable JSON. 
+
+`nano-graphrag` introduces a post-process interface for you to convert the response to JSON. This func's signature is below:
+
+```	python 
+def YOUR_STRING_TO_JSON_FUNC(response: str) -> dict:
+  "Convert the string response to JSON"
+  ...
+```
+
+And pass your own func by `GraphRAG(...convert_response_to_json_func=YOUR_STRING_TO_JSON_FUNC,...)`.
+
+For example, you can refer to [json_repair](https://github.com/mangiucugna/json_repair) to repair the JSON string returned by LLM. 
+
+
+
 ### Embedding
 
 You can replace the default embedding functions with any `_utils.EmbedddingFunc` instance.
