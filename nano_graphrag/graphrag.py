@@ -35,6 +35,18 @@ from .base import (
 )
 
 
+def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
+    try:
+        # If there is already an event loop, use it.
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # If in a sub-thread, create a new event loop.
+        logger.info("Creating a new event loop in a sub-thread.")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop
+
+
 @dataclass
 class GraphRAG:
     working_dir: str = field(
@@ -152,11 +164,11 @@ class GraphRAG:
         )
 
     def insert(self, string_or_strings):
-        loop = asyncio.get_event_loop()
+        loop = always_get_an_event_loop()
         return loop.run_until_complete(self.ainsert(string_or_strings))
 
     def query(self, query: str, param: QueryParam = QueryParam()):
-        loop = asyncio.get_event_loop()
+        loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
