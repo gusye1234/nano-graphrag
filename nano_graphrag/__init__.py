@@ -1,6 +1,6 @@
 from .graphrag import GraphRAG, QueryParam
 
-__version__ = "0.0.5.dev0"
+__version__ = "0.0.5.dev1"
 __author__ = "Jianbai Ye"
 __url__ = "https://github.com/gusye1234/nano-graphrag"
 
