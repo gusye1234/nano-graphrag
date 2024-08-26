@@ -88,7 +88,6 @@ class GraphRAG:
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_token_size: int = 32768
     cheap_model_max_async: int = 16
-    chat_model_func: callable = gpt_4o_complete
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
@@ -159,9 +158,6 @@ class GraphRAG:
     def query(self, query: str, param: QueryParam = QueryParam()):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
-
-    def chat(self, messages: list[str], param: QueryParam = QueryParam()):
-        pass
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:

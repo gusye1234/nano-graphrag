@@ -837,6 +837,8 @@ async def local_query(
         text_chunks_db,
         query_param,
     )
+    if query_param.only_need_context:
+        return context
     if context is None:
         return PROMPTS["fail_response"]
     sys_prompt_temp = PROMPTS["local_rag_response"]
@@ -971,6 +973,8 @@ Importance Score: {dp['score']}
 """
         )
     points_context = "\n".join(points_context)
+    if query_param.only_need_context:
+        return points_context
     sys_prompt_temp = PROMPTS["global_reduce_rag_response"]
     response = await use_model_func(
         query,
