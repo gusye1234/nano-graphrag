@@ -7,13 +7,22 @@ import re
 from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import tiktoken
 
 logger = logging.getLogger("nano-graphrag")
 ENCODER = None
+
+
+def locate_json_string_body_from_string(content: str) -> Union[str, None]:
+    """Locate the JSON string body from a string"""
+    maybe_json_str = re.search(r"{.*}", content, re.DOTALL)
+    if maybe_json_str is not None:
+        return maybe_json_str.group(0)
+    else:
+        return None
 
 
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
