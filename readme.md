@@ -174,7 +174,9 @@ GraphRAG(best_model_func=my_llm_complete, best_model_max_token_size=..., best_mo
 GraphRAG(cheap_model_func=my_llm_complete, cheap_model_max_token_size=..., cheap_model_max_async=...)
 ```
 
-You can refer to an [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model in `nano-graphrag`
+You can refer to this [example](./examples/using_deepseek_as_llm.py) that use [`deepseek-chat`](https://platform.deepseek.com/api-docs/) as the LLM model
+
+You can refer to this [example](./examples/using_ollama_as_llm.py) that use [`ollama`](https://github.com/ollama/ollama) as the LLM model
 
 #### Json Output
 
