@@ -241,9 +241,11 @@ async def extract_entities(
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]
 
     already_processed = 0
+    already_entities = 0
+    already_relations = 0
 
     async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]):
-        nonlocal already_processed
+        nonlocal already_processed, already_entities, already_relations
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
@@ -296,16 +298,23 @@ async def extract_entities(
                     if_relation
                 )
         already_processed += 1
+        already_entities += len(maybe_nodes)
+        already_relations += len(maybe_edges)
         now_ticks = PROMPTS["process_tickers"][
             already_processed % len(PROMPTS["process_tickers"])
         ]
-        print(f"{now_ticks} Processed {already_processed} chunks\r", end="", flush=True)
+        print(
+            f"{now_ticks} Processed {already_processed} chunks, {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
+            end="",
+            flush=True,
+        )
         return dict(maybe_nodes), dict(maybe_edges)
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
     results = await asyncio.gather(
         *[_process_single_content(c) for c in ordered_chunks]
     )
+    print()  # clear the progress bar
     maybe_nodes = defaultdict(list)
     maybe_edges = defaultdict(list)
     for m_nodes, m_edges in results:
@@ -581,6 +590,7 @@ async def generate_community_report(
                 )
             }
         )
+    print()  # clear the progress bar
     await community_report_kv.upsert(community_datas)
 
 
