@@ -104,6 +104,10 @@ await graph_func.aquery(...)
 
 `GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters! 
 
+### FQA
+
+Check [FQA](./FAQ.md).
+
 
 
 ## Advances
