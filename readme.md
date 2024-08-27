@@ -43,13 +43,11 @@ pip install -e .
 
 ## Quick Start
 
-**Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
-
 > [!TIP]
 >
-> If you like to use another LLM: [LLM component](#LLM).
+>  **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
 >
-> If you like to use another Embedding Model: [Embedding](#Embedding).
+> If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM: [LLM component](#LLM). If you like to use another Embedding Model: [Embedding](#Embedding).
 
 download a copy of A Christmas Carol by Charles Dickens:
 
