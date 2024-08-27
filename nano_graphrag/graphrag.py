@@ -231,7 +231,7 @@ class GraphRAG:
                     )
                 }
                 inserting_chunks.update(chunks)
-            _add_chunk_keys = await self.full_docs.filter_keys(
+            _add_chunk_keys = await self.text_chunks.filter_keys(
                 list(inserting_chunks.keys())
             )
             inserting_chunks = {
