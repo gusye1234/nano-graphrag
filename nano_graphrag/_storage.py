@@ -3,9 +3,10 @@ import html
 import json
 import os
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Union, cast
-
+import pickle
+import hnswlib
 import networkx as nx
 import numpy as np
 from nano_vectordb import NanoVectorDB
@@ -113,6 +114,102 @@ class NanoVectorDBStorage(BaseVectorStorage):
 
     async def index_done_callback(self):
         self._client.save()
+
+
+@dataclass
+class HNSWVectorStorage(BaseVectorStorage):
+    ef_construction: int = 100
+    M: int = 16
+    max_elements: int = 1000000
+    num_threads: int = -1
+    _index: Any = field(init=False)
+    _metadata: dict[str, dict] = field(default_factory=dict)
+    _current_elements: int = 0
+
+    def __post_init__(self):
+        self._index_file_name = os.path.join(
+            self.global_config["working_dir"], f"{self.namespace}_hnsw.index"
+        )
+        self._metadata_file_name = os.path.join(
+            self.global_config["working_dir"], f"{self.namespace}_hnsw_metadata.pkl"
+        )
+        self._max_batch_size = self.global_config.get("embedding_batch_num", 100)
+
+        if os.path.exists(self._index_file_name) and os.path.exists(self._metadata_file_name):
+            self._index = hnswlib.Index(space='cosine', dim=self.embedding_func.embedding_dim)
+            self._index.load_index(self._index_file_name, max_elements=self.max_elements)
+            with open(self._metadata_file_name, 'rb') as f:
+                self._metadata, self._current_elements = pickle.load(f)
+            logger.info(f"Loaded existing index for {self.namespace} with {self._current_elements} elements")
+        else:
+            self._index = hnswlib.Index(space='cosine', dim=self.embedding_func.embedding_dim)
+            self._index.init_index(
+                max_elements=self.max_elements,
+                ef_construction=self.ef_construction,
+                M=self.M
+            )
+            logger.info(f"Created new index for {self.namespace}")
+
+    async def upsert(self, data: dict[str, dict]):
+        logger.info(f"Inserting {len(data)} vectors to {self.namespace}")
+        if not data:
+            raise ValueError("Attempting to insert empty data to vector DB")
+
+        if self._current_elements + len(data) > self.max_elements:
+            raise ValueError(f"Cannot insert {len(data)} elements. Current: {self._current_elements}, Max: {self.max_elements}")
+
+        contents = [v["content"] for v in data.values()]
+        batches = [
+            contents[i : i + self._max_batch_size]
+            for i in range(0, len(contents), self._max_batch_size)
+        ]
+        embeddings_list = await asyncio.gather(
+            *[self.embedding_func(batch) for batch in batches]
+        )
+        embeddings = np.concatenate(embeddings_list)
+
+        ids = []
+        for id, item in data.items():
+            metadata = {k: v for k, v in item.items() if k in self.meta_fields}
+            metadata['id'] = id
+            self._metadata[id] = metadata
+            ids.append(int(id) if id.isdigit() else hash(id))
+
+        ids = np.array(ids)
+        self._index.add_items(data=embeddings, ids=ids, num_threads=self.num_threads)
+        self._current_elements += len(data)
+
+    async def query(self, query: str, top_k: int = 5, ef_search: int = 50) -> list[dict]:
+        if len(self._metadata) == 0:
+            return []
+        
+        if top_k >= ef_search:
+            raise ValueError(f"top_k must be greater than or equal to ef_search, got {top_k} and {ef_search}")
+        
+        self._index.set_ef(ef_search)
+        query_vector = await self.embedding_func([query])
+        labels, distances = self._index.knn_query(
+            data=query_vector, 
+            k=min(top_k, len(self._metadata)), 
+            num_threads=self.num_threads
+        )
+        
+        results = []
+        for label, distance in zip(labels[0], distances[0]):
+            id_str = str(label)
+            if id_str in self._metadata:
+                metadata = self._metadata[id_str]
+                results.append({
+                    **metadata,
+                    "distance": distance,
+                    "similarity": 1 - distance
+                })
+        return results
+
+    async def index_done_callback(self):
+        self._index.save_index(self._index_file_name)
+        with open(self._metadata_file_name, 'wb') as f:
+            pickle.dump((self._metadata, self._current_elements), f)
 
 
 @dataclass
