@@ -3,3 +3,4 @@ tiktoken
 networkx
 graspologic
 nano-vectordb
+hnswlib
