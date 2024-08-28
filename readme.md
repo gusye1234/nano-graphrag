@@ -47,7 +47,7 @@ pip install -e .
 >
 >  **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
 >
-> If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM: [LLM component](#LLM). If you like to use another Embedding Model: [Embedding](#Embedding).
+> If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM or Embedding Model, check [Advances](#Advances).
 
 download a copy of A Christmas Carol by Charles Dickens:
 
@@ -74,7 +74,8 @@ print(graph_func.query("What are the top themes in this story?", param=QueryPara
 
 Next time you initialize a `GraphRAG` from the same `working_dir`, it will reload all the contexts automatically.
 
-### Incremental Insert
+<details>
+<summary> Incremental Insert</summary>
 
 `nano-graphrag` supports incremental insert, no duplicated computation or data will be added:
 
@@ -90,6 +91,8 @@ with open("./book.txt") as f:
 >
 > However, each time you insert, the communities of graph will be re-computed and the community reports will be re-generated
 
+</details>
+
 ### Async
 
 For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
@@ -104,28 +107,26 @@ await graph_func.aquery(...)
 
 `GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters! 
 
-## FQA
 
-Check [FQA](./FAQ.md).
 
 ## Components
 
-below are the components you can use:
+Below are the components you can use:
 
-| Type            | What                                                         |              Where               |
-| --------------- | ------------------------------------------------------------ | :------------------------------: |
-| LLM             | OpenAI                                                       |             Built-in             |
-|                 | DeepSeek                                                     |      [examples](./examples)      |
-|                 | `ollama`                                                     |      [examples](./examples)      |
-| Embedding       | OpenAI                                                       |             Built-in             |
-|                 | Sentence-transformers                                        |      [examples](./examples)      |
+| Type            |                             What                             |              Where               |
+| :-------------- | :----------------------------------------------------------: | :------------------------------: |
+| LLM             |                            OpenAI                            |             Built-in             |
+|                 |                           DeepSeek                           |      [examples](./examples)      |
+|                 |                           `ollama`                           |      [examples](./examples)      |
+| Embedding       |                            OpenAI                            |             Built-in             |
+|                 |                    Sentence-transformers                     |      [examples](./examples)      |
 | Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |             Built-in             |
-|                 | [`hnswlib`](https://github.com/nmslib/hnswlib)               | Built-in, [examples](./examples) |
-|                 | [`milvus-lite`](https://github.com/milvus-io/milvus-lite)    |      [examples](./examples)      |
+|                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        | Built-in, [examples](./examples) |
+|                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
 
 > `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
-
+Welcome to contribute more components!
 
 ## Advances
 
@@ -274,6 +275,12 @@ You can replace all storage-related components to your own implementation, `nano
 
 You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
 </details>
+
+
+
+## FQA
+
+Check [FQA](./FAQ.md).
 
 
 
