@@ -1,5 +1,6 @@
 import os
 from nano_graphrag import GraphRAG, QueryParam
+from nano_graphrag._llm import gpt_4o_mini_complete
 from nano_graphrag._storage import HNSWVectorStorage
 
 
@@ -26,6 +27,11 @@ def insert():
         working_dir=WORKING_DIR,
         enable_llm_cache=True,
         vector_db_storage_cls=HNSWVectorStorage,
+        vector_db_storage_cls_kwargs={"max_elements": 1000000, "ef_search": 100, "M": 8},
+        best_model_max_async=1,
+        cheap_model_max_async=1,
+        best_model_func=gpt_4o_mini_complete,
+        cheap_model_func=gpt_4o_mini_complete,
     )
     start = time()
     rag.insert(FAKE_TEXT)
@@ -37,6 +43,11 @@ def query():
         working_dir=WORKING_DIR,
         enable_llm_cache=True,
         vector_db_storage_cls=HNSWVectorStorage,
+        vector_db_storage_cls_kwargs={"max_elements": 1000000, "ef_search": 100, "M": 8},
+        best_model_max_async=1,
+        cheap_model_max_async=1,
+        best_model_func=gpt_4o_mini_complete,
+        cheap_model_func=gpt_4o_mini_complete,
     )
     print(
         rag.query(

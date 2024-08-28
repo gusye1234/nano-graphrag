@@ -121,6 +121,7 @@ class HNSWVectorStorage(BaseVectorStorage):
     ef_construction: int = 100
     M: int = 16
     max_elements: int = 1000000
+    ef_search: int = 50
     num_threads: int = -1
     _index: Any = field(init=False)
     _metadata: dict[str, dict] = field(default_factory=dict)
@@ -135,6 +136,13 @@ class HNSWVectorStorage(BaseVectorStorage):
         )
         self._max_batch_size = self.global_config.get("embedding_batch_num", 100)
 
+        hnsw_params = self.global_config.get("vector_db_storage_cls_kwargs", {})
+        self.ef_construction = hnsw_params.get("ef_construction", self.ef_construction)
+        self.M = hnsw_params.get("M", self.M)
+        self.max_elements = hnsw_params.get("max_elements", self.max_elements)
+        self.ef_search = hnsw_params.get("ef_search", self.ef_search)
+        self.num_threads = hnsw_params.get("num_threads", self.num_threads)
+
         if os.path.exists(self._index_file_name) and os.path.exists(self._metadata_file_name):
             self._index = hnswlib.Index(space='cosine', dim=self.embedding_func.embedding_dim)
             self._index.load_index(self._index_file_name, max_elements=self.max_elements)
@@ -148,6 +156,7 @@ class HNSWVectorStorage(BaseVectorStorage):
                 ef_construction=self.ef_construction,
                 M=self.M
             )
+            self._index.set_ef(self.ef_search)
             logger.info(f"Created new index for {self.namespace}")
 
     async def upsert(self, data: dict[str, dict]):
@@ -179,14 +188,13 @@ class HNSWVectorStorage(BaseVectorStorage):
         self._index.add_items(data=embeddings, ids=ids, num_threads=self.num_threads)
         self._current_elements += len(data)
 
-    async def query(self, query: str, top_k: int = 5, ef_search: int = 50) -> list[dict]:
+    async def query(self, query: str, top_k: int = 5) -> list[dict]:
         if len(self._metadata) == 0:
             return []
         
-        if top_k >= ef_search:
-            raise ValueError(f"top_k must be greater than or equal to ef_search, got {top_k} and {ef_search}")
-        
-        self._index.set_ef(ef_search)
+        if top_k >= self.ef_search:
+            raise ValueError(f"top_k must be greater than or equal to ef_search, got {top_k} and {self.ef_search}")
+
         query_vector = await self.embedding_func([query])
         labels, distances = self._index.knn_query(
             data=query_vector, 

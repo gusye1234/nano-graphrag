@@ -104,6 +104,7 @@ class GraphRAG:
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = NanoVectorDBStorage
+    vector_db_storage_cls_kwargs: dict = field(default_factory=dict)
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
     enable_llm_cache: bool = True
 
@@ -151,6 +152,7 @@ class GraphRAG:
                 global_config=asdict(self),
                 embedding_func=self.embedding_func,
                 meta_fields={"entity_name"},
+                **self.vector_db_storage_cls_kwargs,
             )
             if self.enable_local
             else None
