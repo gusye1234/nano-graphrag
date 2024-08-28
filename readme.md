@@ -265,5 +265,6 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 >  If a checkbox is filled meaning it's done.
 
 - [ ] Add real benchmark with GraphRAG
+- [ ] Add [Sciphi Triplex](https://huggingface.co/SciPhi/Triplex) as the entity extraction model.
 - [ ] Add new components, see [issue](https://github.com/gusye1234/nano-graphrag/issues/2)
 
