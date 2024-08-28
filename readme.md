@@ -19,7 +19,7 @@
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**portable**](#Advances), [**asynchronous**](#Async) and fully typed.
+👌 Small yet [**portable**](#Components), [**asynchronous**](#Async) and fully typed.
 
 
 
@@ -172,8 +172,8 @@ Some important prompts:
 
 </details>
 
-
-### LLM
+<details>
+<summary>LLM Function</summary>
 
 In `nano-graphrag`, we requires two types of LLM, a great one and a cheap one. The former is used to plan and respond, the latter is used to summary. By default, the great one is `gpt-4o` and the cheap one is `gpt-4o-mini`
 
@@ -219,10 +219,12 @@ def YOUR_STRING_TO_JSON_FUNC(response: str) -> dict:
 And pass your own func by `GraphRAG(...convert_response_to_json_func=YOUR_STRING_TO_JSON_FUNC,...)`.
 
 For example, you can refer to [json_repair](https://github.com/mangiucugna/json_repair) to repair the JSON string returned by LLM. 
+</details>
 
 
 
-### Embedding
+<details>
+<summary>Embedding Function</summary>
 
 You can replace the default embedding functions with any `_utils.EmbedddingFunc` instance.
 
@@ -245,8 +247,11 @@ GraphRAG(embedding_func=your_embed_func, embedding_batch_num=..., embedding_func
 ```
 
 You can refer to an [example](./examples/using_local_embedding_model.py) that use `sentence-transformer` to locally compute embeddings.
+</details>
 
-### Storage
+
+<details>
+<summary>Storage Component</summary>
 
 You can replace all storage-related components to your own implementation, `nano-graphrag` mainly uses three kinds of storage:
 
@@ -268,6 +273,8 @@ You can replace all storage-related components to your own implementation, `nano
 - `GraphRAG(.., graph_storage_cls=YOURS,...)`
 
 You can refer to `nano_graphrag.base` to see detailed interfaces for each components.
+</details>
+
 
 
 
