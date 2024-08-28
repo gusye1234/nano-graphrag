@@ -104,16 +104,33 @@ await graph_func.aquery(...)
 
 `GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters! 
 
-### FQA
+## FQA
 
 Check [FQA](./FAQ.md).
+
+## Components
+
+below are the components you can use:
+
+| Type            | What                                                         |              Where               |
+| --------------- | ------------------------------------------------------------ | :------------------------------: |
+| LLM             | OpenAI                                                       |             Built-in             |
+|                 | DeepSeek                                                     |      [examples](./examples)      |
+|                 | `ollama`                                                     |      [examples](./examples)      |
+| Embedding       | OpenAI                                                       |             Built-in             |
+|                 | Sentence-transformers                                        |      [examples](./examples)      |
+| Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |             Built-in             |
+|                 | [`hnswlib`](https://github.com/nmslib/hnswlib)               | Built-in, [examples](./examples) |
+|                 | [`milvus-lite`](https://github.com/milvus-io/milvus-lite)    |      [examples](./examples)      |
+
+> `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
 
 
 ## Advances
 
-### Only query the related context
-
+<details>
+<summary>Only query the related context</summary>
 `graph_func.query` return the final answer without streaming. 
 
 If you like to interagte `nano-graphrag` in your project, you can use `param=QueryParam(..., only_need_context=True,...)`, which will only return the retrieved context from graph, something like:
@@ -137,6 +154,7 @@ Donald J. Trump: Frequently discussed in relation to his political activities...
 
 You can integrate that context into your customized prompt.
 
+</details>
 ### Prompt
 
 `nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
@@ -234,7 +252,8 @@ You can replace all storage-related components to your own implementation, `nano
 **`base.BaseVectorStorage` for indexing embeddings**
 
 - By default we use [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) as the backend.
-- Check out this [example](./examples/using_milvus_as_vectorDB.py) that use [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend (not available in Windows).
+- We have a built-in [`hnswlib`](https://github.com/nmslib/hnswlib) storage also, check out this [example](./examples/using_hnsw_as_vectorDB.py).
+- Check out this [example](./examples/using_milvus_as_vectorDB.py) that implements [`milvus-lite`](https://github.com/milvus-io/milvus-lite) as the backend (not available in Windows).
 - `GraphRAG(.., vector_db_storage_cls=YOURS,...)`
 
 **`base.BaseGraphStorage` for storing knowledge graph**
