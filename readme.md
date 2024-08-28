@@ -305,5 +305,6 @@ Check [FQA](./FAQ.md).
 
 - [ ] Add real benchmark with GraphRAG
 - [ ] Add [Sciphi Triplex](https://huggingface.co/SciPhi/Triplex) as the entity extraction model.
+- [ ] Add `before_query`, `before_insert` to separate component loadings.
 - [ ] Add new components, see [issue](https://github.com/gusye1234/nano-graphrag/issues/2)
 
