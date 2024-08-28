@@ -19,3 +19,5 @@ Try to use another bigger LLM, or here are some ideas to fix it:
         "content": "You are an intelligent assistant and will follow the instructions given to you to fulfill the goal. The answer should be in the format as in the given example."
     }
     ```
+    You can use this system_prompt as default for your LLM calling funcation
+    
