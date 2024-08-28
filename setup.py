@@ -36,4 +36,7 @@ setuptools.setup(
     ],
     python_requires=">=3.9",
     install_requires=deps,
+    extras_require={
+        "nebula": ["nebula3-python>=3.8.3", "ng_nx"],
+    },
 )

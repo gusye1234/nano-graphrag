@@ -85,6 +85,13 @@ class BaseVectorStorage(StorageNameSpace):
 
 @dataclass
 class BaseKVStorage(Generic[T], StorageNameSpace):
+    namespace: Literal[
+        "full_docs",  # for full docs storage
+        "text_chunks",  # for text chunks storage
+        "llm_response_cache",  # for llm response cache
+        "community_reports",  # for community reports
+    ]
+
     async def all_keys(self) -> list[str]:
         raise NotImplementedError
 

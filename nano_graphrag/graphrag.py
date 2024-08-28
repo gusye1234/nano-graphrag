@@ -3,7 +3,7 @@ import os
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from functools import partial
-from typing import Type, cast
+from typing import Type, cast, Literal
 
 
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
@@ -18,6 +18,7 @@ from ._storage import (
     JsonKVStorage,
     NanoVectorDBStorage,
     NetworkXStorage,
+    StorageFactory,
 )
 from ._utils import (
     EmbeddingFunc,
@@ -119,36 +120,47 @@ class GraphRAG:
             logger.info(f"Creating working directory {self.working_dir}")
             os.makedirs(self.working_dir)
 
-        self.full_docs = self.key_string_value_json_storage_cls(
-            namespace="full_docs", global_config=asdict(self)
+        self.full_docs = StorageFactory.get_storage(
+            namespace="full_docs",
+            global_config=asdict(self),
+            knowledge_store=self.knowledge_store
         )
 
-        self.text_chunks = self.key_string_value_json_storage_cls(
-            namespace="text_chunks", global_config=asdict(self)
+        self.text_chunks = StorageFactory.get_storage(
+            namespace="text_chunks",
+            global_config=asdict(self),
+            knowledge_store=self.knowledge_store
         )
 
         self.llm_response_cache = (
-            self.key_string_value_json_storage_cls(
-                namespace="llm_response_cache", global_config=asdict(self)
+            StorageFactory.get_storage(
+                namespace="llm_response_cache",
+                global_config=asdict(self),
+                knowledge_store=self.knowledge_store
             )
             if self.enable_llm_cache
             else None
         )
 
-        self.community_reports = self.key_string_value_json_storage_cls(
-            namespace="community_reports", global_config=asdict(self)
+        self.community_reports = StorageFactory.get_storage(
+            namespace="community_reports",
+            global_config=asdict(self),
+            knowledge_store=self.knowledge_store
         )
-        self.chunk_entity_relation_graph = self.graph_storage_cls(
-            namespace="chunk_entity_relation", global_config=asdict(self)
+        self.chunk_entity_relation_graph = StorageFactory.get_storage(
+            namespace="chunk_entity_relation",
+            global_config=asdict(self),
+            knowledge_store=self.knowledge_store
         )
 
         self.embedding_func = limit_async_func_call(self.embedding_func_max_async)(
             self.embedding_func
         )
         self.entities_vdb = (
-            self.vector_db_storage_cls(
+            StorageFactory.get_storage(
                 namespace="entities",
                 global_config=asdict(self),
+                knowledge_store=self.knowledge_store,
                 embedding_func=self.embedding_func,
                 meta_fields={"entity_name"},
             )
