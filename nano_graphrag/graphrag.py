@@ -151,8 +151,7 @@ class GraphRAG:
                 namespace="entities",
                 global_config=asdict(self),
                 embedding_func=self.embedding_func,
-                meta_fields={"entity_name"},
-                **self.vector_db_storage_cls_kwargs,
+                meta_fields={"entity_name"}
             )
             if self.enable_local
             else None
