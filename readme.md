@@ -131,6 +131,7 @@ below are the components you can use:
 
 <details>
 <summary>Only query the related context</summary>
+
 `graph_func.query` return the final answer without streaming. 
 
 If you like to interagte `nano-graphrag` in your project, you can use `param=QueryParam(..., only_need_context=True,...)`, which will only return the retrieved context from graph, something like:
@@ -155,7 +156,9 @@ Donald J. Trump: Frequently discussed in relation to his political activities...
 You can integrate that context into your customized prompt.
 
 </details>
-### Prompt
+
+<details>
+<summary>Prompt</summary>
 
 `nano-graphrag` use prompts from `nano_graphrag.prompt.PROMPTS` dict object. You can play with it and replace any prompt inside.
 
@@ -166,6 +169,9 @@ Some important prompts:
 - `PROMPTS["local_rag_response"]` is the system prompt template of the local search generation.
 - `PROMPTS["global_reduce_rag_response"]` is the system prompt template of the global search generation.
 - `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
+
+</details>
+
 
 ### LLM
 
