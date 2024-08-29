@@ -126,7 +126,7 @@ Below are the components you can use:
 
 - `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
-- Check [examples/benchmark](./examples/benchmark) to see few comparisons between components.
+- Check [examples/benchmarks](./examples/benchmarks) to see few comparisons between components.
 - **Always welcome to contribute more components.**
 
 ## Advances
