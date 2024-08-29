@@ -65,6 +65,7 @@ class JsonKVStorage(BaseKVStorage):
 
 @dataclass
 class NanoVectorDBStorage(BaseVectorStorage):
+    cosine_better_than_threshold: float = 0.2
 
     def __post_init__(self):
 
@@ -74,6 +75,9 @@ class NanoVectorDBStorage(BaseVectorStorage):
         self._max_batch_size = self.global_config["embedding_batch_num"]
         self._client = NanoVectorDB(
             self.embedding_func.embedding_dim, storage_file=self._client_file_name
+        )
+        self.cosine_better_than_threshold = self.global_config.get(
+            "cosine_better_than_threshold", self.cosine_better_than_threshold
         )
 
     async def upsert(self, data: dict[str, dict]):
@@ -106,7 +110,9 @@ class NanoVectorDBStorage(BaseVectorStorage):
         embedding = await self.embedding_func([query])
         embedding = embedding[0]
         results = self._client.query(
-            query=embedding, top_k=top_k, better_than_threshold=0.2
+            query=embedding,
+            top_k=top_k,
+            better_than_threshold=self.cosine_better_than_threshold,
         )
         results = [
             {**dp, "id": dp["__id__"], "distance": dp["__metrics__"]} for dp in results
@@ -143,18 +149,26 @@ class HNSWVectorStorage(BaseVectorStorage):
         self.max_elements = hnsw_params.get("max_elements", self.max_elements)
         self.ef_search = hnsw_params.get("ef_search", self.ef_search)
         self.num_threads = hnsw_params.get("num_threads", self.num_threads)
-        self._index = hnswlib.Index(space='cosine', dim=self.embedding_func.embedding_dim)
+        self._index = hnswlib.Index(
+            space="cosine", dim=self.embedding_func.embedding_dim
+        )
 
-        if os.path.exists(self._index_file_name) and os.path.exists(self._metadata_file_name):
-            self._index.load_index(self._index_file_name, max_elements=self.max_elements)
-            with open(self._metadata_file_name, 'rb') as f:
+        if os.path.exists(self._index_file_name) and os.path.exists(
+            self._metadata_file_name
+        ):
+            self._index.load_index(
+                self._index_file_name, max_elements=self.max_elements
+            )
+            with open(self._metadata_file_name, "rb") as f:
                 self._metadata, self._current_elements = pickle.load(f)
-            logger.info(f"Loaded existing index for {self.namespace} with {self._current_elements} elements")
+            logger.info(
+                f"Loaded existing index for {self.namespace} with {self._current_elements} elements"
+            )
         else:
             self._index.init_index(
                 max_elements=self.max_elements,
                 ef_construction=self.ef_construction,
-                M=self.M
+                M=self.M,
             )
             self._index.set_ef(self.ef_search)
             self._metadata = {}
@@ -168,7 +182,9 @@ class HNSWVectorStorage(BaseVectorStorage):
             return []
 
         if self._current_elements + len(data) > self.max_elements:
-            raise ValueError(f"Cannot insert {len(data)} elements. Current: {self._current_elements}, Max: {self.max_elements}")
+            raise ValueError(
+                f"Cannot insert {len(data)} elements. Current: {self._current_elements}, Max: {self.max_elements}"
+            )
 
         list_data = [
             {
@@ -179,20 +195,28 @@ class HNSWVectorStorage(BaseVectorStorage):
         ]
         contents = [v["content"] for v in data.values()]
         batch_size = min(self._embedding_batch_num, len(contents))
-        embeddings = np.concatenate(await asyncio.gather(
-            *[self.embedding_func(contents[i:i + batch_size]) 
-            for i in range(0, len(contents), batch_size)]
-        ))
+        embeddings = np.concatenate(
+            await asyncio.gather(
+                *[
+                    self.embedding_func(contents[i : i + batch_size])
+                    for i in range(0, len(contents), batch_size)
+                ]
+            )
+        )
 
         ids = np.fromiter(
-            (xxhash.xxh32_intdigest(d["id"].encode()) for d in list_data), 
-            dtype=np.uint32, 
-            count=len(list_data)
+            (xxhash.xxh32_intdigest(d["id"].encode()) for d in list_data),
+            dtype=np.uint32,
+            count=len(list_data),
         )
-        self._metadata.update({
-            id_int: {k: v for k, v in d.items() if k in self.meta_fields or k == "id"}
-            for id_int, d in zip(ids, list_data)
-        })
+        self._metadata.update(
+            {
+                id_int: {
+                    k: v for k, v in d.items() if k in self.meta_fields or k == "id"
+                }
+                for id_int, d in zip(ids, list_data)
+            }
+        )
         self._index.add_items(data=embeddings, ids=ids, num_threads=self.num_threads)
         self._current_elements = self._index.get_current_count()
         return ids
@@ -204,20 +228,28 @@ class HNSWVectorStorage(BaseVectorStorage):
         top_k = min(top_k, self._current_elements)
 
         if top_k > self.ef_search:
-            logger.warning(f"Setting ef_search to {top_k} because top_k is larger than ef_search")
+            logger.warning(
+                f"Setting ef_search to {top_k} because top_k is larger than ef_search"
+            )
             self._index.set_ef(top_k)
 
         embedding = await self.embedding_func([query])
-        labels, distances = self._index.knn_query(data=embedding[0], k=top_k, num_threads=self.num_threads)
-        
+        labels, distances = self._index.knn_query(
+            data=embedding[0], k=top_k, num_threads=self.num_threads
+        )
+
         return [
-            {**self._metadata.get(label, {}), "distance": distance, "similarity": 1 - distance}
+            {
+                **self._metadata.get(label, {}),
+                "distance": distance,
+                "similarity": 1 - distance,
+            }
             for label, distance in zip(labels[0], distances[0])
         ]
 
     async def index_done_callback(self):
         self._index.save_index(self._index_file_name)
-        with open(self._metadata_file_name, 'wb') as f:
+        with open(self._metadata_file_name, "wb") as f:
             pickle.dump((self._metadata, self._current_elements), f)
 
 
