@@ -4,3 +4,4 @@ networkx
 graspologic
 nano-vectordb
 hnswlib
+xxhash
