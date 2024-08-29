@@ -1,5 +1,10 @@
 <div align="center">
-  <h1>nano-GraphRAG</h1>
+  <a href="https://github.com/gusye1234/nano-graphrag">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://assets.memodb.io/nano-graphrag-dark.png">
+      <img alt="Shows the MemoDB logo" src="https://assets.memodb.io/nano-graphrag.png" width="512">
+    </picture>
+  </a>
   <p><strong>A simple, easy-to-hack GraphRAG implementation</strong></p>
   <p>
     <img src="https://img.shields.io/badge/python->=3.9.11-blue">
@@ -8,6 +13,7 @@
     </a>
   </p>
 </div>
+
 
 
 
