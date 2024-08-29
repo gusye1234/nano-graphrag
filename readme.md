@@ -124,9 +124,10 @@ Below are the components you can use:
 |                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        | Built-in, [examples](./examples) |
 |                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
 
-> `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
+- `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
-Welcome to contribute more components!
+- Check [examples/benchmark](./examples/benchmark) to see few comparisons between components.
+- **Always welcome to contribute more components.**
 
 ## Advances
 

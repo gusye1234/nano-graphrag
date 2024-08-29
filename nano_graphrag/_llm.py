@@ -1,5 +1,6 @@
 import numpy as np
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIConnectionError, RateLimitError, Timeout
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
 from .base import BaseKVStorage
@@ -57,6 +58,11 @@ async def gpt_4o_mini_complete(
 
 
 @wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout))
+)
 async def openai_embedding(texts: list[str]) -> np.ndarray:
     openai_async_client = AsyncOpenAI()
     response = await openai_async_client.embeddings.create(

@@ -8,7 +8,7 @@ from nano_graphrag import GraphRAG
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
 from nano_graphrag._storage import HNSWVectorStorage
 
-WORKING_DIR = "./tests/nano_graphrag_cache_HNSW_TEST"
+WORKING_DIR = "./tests/nano_graphrag_cache_hnsw_vector_storage_test"
 
 
 @pytest.fixture(scope="function")
@@ -86,9 +86,31 @@ async def test_persistence(setup_teardown):
 
 
 @pytest.mark.asyncio
-async def test_empty_upsert(hnsw_storage):
-    with pytest.raises(ValueError):
-        await hnsw_storage.upsert({})
+async def test_persistence_large_dataset(setup_teardown):
+    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
+    initial_storage = HNSWVectorStorage(
+        namespace="test_large",
+        global_config=asdict(rag),
+        embedding_func=mock_embedding,
+        meta_fields={"entity_name"},
+        max_elements=10000
+    )
+    
+    large_data = {str(i): {"content": f"Test content {i}", "entity_name": f"Entity {i}"} for i in range(1000)}
+    await initial_storage.upsert(large_data)
+    await initial_storage.index_done_callback()
+    
+    new_storage = HNSWVectorStorage(
+        namespace="test_large",
+        global_config=asdict(rag),
+        embedding_func=mock_embedding,
+        meta_fields={"entity_name"},
+        max_elements=10000
+    )
+    
+    results = await new_storage.query("Test query", top_k=1000)
+    assert len(results) == 1000
+    assert all(result["id"] in large_data for result in results)
 
 
 @pytest.mark.asyncio
@@ -108,9 +130,11 @@ async def test_upsert_with_existing_ids(hnsw_storage):
     await hnsw_storage.upsert(updated_data)
     
     results = await hnsw_storage.query("Updated", top_k=3)
+
     assert len(results) == 3
     assert any(result["id"] == "1" and result["entity_name"] == "Updated Entity 1" for result in results)
-    assert any(result["id"] == "3" for result in results)
+    assert any(result["id"] == "2" and result["entity_name"] == "Entity 2" for result in results)
+    assert any(result["id"] == "3" and result["entity_name"] == "Entity 3" for result in results)
 
 
 @pytest.mark.asyncio
@@ -124,6 +148,15 @@ async def test_large_batch_upsert(hnsw_storage):
     assert len(results) == batch_size
     assert all(isinstance(result, dict) for result in results)
     assert all("id" in result and "distance" in result and "similarity" in result for result in results)
+
+
+@pytest.mark.asyncio
+async def test_empty_data_insertion(hnsw_storage):
+    empty_data = {}
+    await hnsw_storage.upsert(empty_data)
+    
+    results = await hnsw_storage.query("Test query", top_k=1)
+    assert len(results) == 0
 
 
 @pytest.mark.asyncio
@@ -189,3 +222,25 @@ async def test_max_elements_limit(setup_teardown):
 
     results = await large_storage.query("Test query", top_k=initial_data_size)
     assert len(results) == initial_data_size
+
+
+@pytest.mark.asyncio
+async def test_ef_search_values(setup_teardown):
+    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
+    storage = HNSWVectorStorage(
+        namespace="test_ef",
+        global_config=asdict(rag),
+        embedding_func=mock_embedding,
+        meta_fields={"entity_name"},
+        ef_search=10
+    )
+    
+    data = {str(i): {"content": f"Test content {i}", "entity_name": f"Entity {i}"} for i in range(20)}
+    await storage.upsert(data)
+    
+    results_default = await storage.query("Test query", top_k=5)
+    assert len(results_default) == 5
+    
+    storage._index.set_ef(20)
+    results_higher_ef = await storage.query("Test query", top_k=15)
+    assert len(results_higher_ef) == 15
