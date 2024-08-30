@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import numbers
 from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
@@ -104,9 +105,21 @@ def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]
     return [r.strip() for r in results if r.strip()]
 
 
+def enclose_string_with_quotes(content: Any) -> str:
+    """Enclose a string with quotes"""
+    if isinstance(content, numbers.Number):
+        return str(content)
+    content = str(content)
+    content = content.strip().strip("'").strip('"')
+    return f'"{content}"'
+
+
 def list_of_list_to_csv(data: list[list]):
     return "\n".join(
-        [",\t".join([str(data_dd) for data_dd in data_d]) for data_d in data]
+        [
+            ",\t".join([f"{enclose_string_with_quotes(data_dd)}" for data_dd in data_d])
+            for data_d in data
+        ]
     )
 
 
