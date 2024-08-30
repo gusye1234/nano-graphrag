@@ -11,8 +11,12 @@
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
+    <a href="https://pepy.tech/project/nano-graphrag">
+      <img src="https://static.pepy.tech/badge/nano-graphrag/month">
+    </a>
   </p>
 </div>
+
 
 
 
