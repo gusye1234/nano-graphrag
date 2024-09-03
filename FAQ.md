@@ -35,6 +35,7 @@ Solution:
   Add a new line into this file below the 'FROM':
   
   `PARAMETER num_ctx 32000`
+  
   `ollama create -f Modelfile qwen2:ctx32k`
   
   Afterwards, you can use qwen2:ctx32k to replace qwen2.
