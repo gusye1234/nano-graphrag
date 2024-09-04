@@ -4,9 +4,6 @@ import re
 from typing import Union
 from collections import Counter, defaultdict
 
-from openai import AsyncOpenAI
-
-from ._llm import gpt_4o_complete
 from ._utils import (
     logger,
     clean_str,
@@ -991,5 +988,39 @@ Importance Score: {dp['score']}
         sys_prompt_temp.format(
             report_data=points_context, response_type=query_param.response_type
         ),
+    )
+    return response
+
+
+async def naive_query(
+    query,
+    chunks_vdb: BaseVectorStorage,
+    text_chunks_db: BaseKVStorage[TextChunkSchema],
+    query_param: QueryParam,
+    global_config: dict,
+):
+    use_model_func = global_config["best_model_func"]
+    results = await chunks_vdb.query(query, top_k=query_param.top_k)
+    if not len(results):
+        return PROMPTS["fail_response"]
+    chunks_ids = [r["id"] for r in results]
+    chunks = await text_chunks_db.get_by_ids(chunks_ids)
+
+    maybe_trun_chunks = truncate_list_by_token_size(
+        chunks,
+        key=lambda x: x["content"],
+        max_token_size=query_param.naive_max_token_for_text_unit,
+    )
+    logger.info(f"Truncate {len(chunks)} to {len(maybe_trun_chunks)} chunks")
+    section = "--New Chunk--\n".join([c["content"] for c in maybe_trun_chunks])
+    if query_param.only_need_context:
+        return section
+    sys_prompt_temp = PROMPTS["naive_rag_response"]
+    sys_prompt = sys_prompt_temp.format(
+        content_data=section, response_type=query_param.response_type
+    )
+    response = await use_model_func(
+        query,
+        system_prompt=sys_prompt,
     )
     return response
