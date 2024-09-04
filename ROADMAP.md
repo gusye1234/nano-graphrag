@@ -1,7 +1,7 @@
 ## Next Version TODO
 
 - [ ] Add `eval` method for `GraphRAG`, add at least one benchmark dataset
-- [ ] Add `before_query`, `before_insert` to separate component loadings.
+- [x] Add naive RAG pipeline
 
 ## Interesting directions
 

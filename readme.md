@@ -103,6 +103,23 @@ with open("./book.txt") as f:
 
 </details>
 
+<details>
+<summary> Naive RAG</summary>
+
+`nano-graphrag` supports naive RAG insert and query as well:
+
+```python
+graph_func = GraphRAG(working_dir="./dickens", enable_naive_rag=True)
+...
+# Query
+print(rag.query(
+      "What are the top themes in this story?",
+      param=QueryParam(mode="naive")
+)
+```
+</details>
+
+
 ### Async
 
 For each method `NAME(...)` , there is a corresponding async method `aNAME(...)`
