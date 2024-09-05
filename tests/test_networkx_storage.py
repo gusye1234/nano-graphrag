@@ -4,6 +4,7 @@ import pytest
 import networkx as nx
 import numpy as np
 import asyncio
+import json
 from nano_graphrag import GraphRAG
 from nano_graphrag._storage import NetworkXStorage
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
@@ -152,6 +153,60 @@ async def test_clustering(networkx_storage, algorithm):
         assert "sub_communities" in community
 
 
+@pytest.mark.parametrize("algorithm", ["leiden"])
+@pytest.mark.asyncio
+async def test_leiden_clustering_consistency(networkx_storage, algorithm):
+    for i in range(10):
+        await networkx_storage.upsert_node(f"NODE{i}", {"source_id": f"chunk{i}"})
+    for i in range(9):
+        await networkx_storage.upsert_edge(f"NODE{i}", f"NODE{i+1}", {})
+    
+    results = []
+    for _ in range(3):
+        await networkx_storage.clustering(algorithm=algorithm)
+        community_schema = await networkx_storage.community_schema()
+        results.append(community_schema)
+    
+    assert all(len(r) == len(results[0]) for r in results), "Number of communities should be consistent"
+
+
+@pytest.mark.parametrize("algorithm", ["leiden"])
+@pytest.mark.asyncio
+async def test_leiden_clustering_community_structure(networkx_storage, algorithm):
+    for i in range(10):
+        await networkx_storage.upsert_node(f"A{i}", {"source_id": f"chunkA{i}"})
+        await networkx_storage.upsert_node(f"B{i}", {"source_id": f"chunkB{i}"})
+    for i in range(9):
+        await networkx_storage.upsert_edge(f"A{i}", f"A{i+1}", {})
+        await networkx_storage.upsert_edge(f"B{i}", f"B{i+1}", {})
+    
+    await networkx_storage.clustering(algorithm=algorithm)
+    community_schema = await networkx_storage.community_schema()
+    
+    assert len(community_schema) >= 2, "Should have at least two communities"
+    
+    communities = list(community_schema.values())
+    a_nodes = set(node for node in communities[0]['nodes'] if node.startswith('A'))
+    b_nodes = set(node for node in communities[0]['nodes'] if node.startswith('B'))
+    assert len(a_nodes) == 0 or len(b_nodes) == 0, "Nodes from different groups should be in different communities"
+
+
+@pytest.mark.parametrize("algorithm", ["leiden"])
+@pytest.mark.asyncio
+async def test_leiden_clustering_hierarchical_structure(networkx_storage, algorithm):
+    await networkx_storage.upsert_node("NODE1", {"source_id": "chunk1", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "1"}])})
+    await networkx_storage.upsert_node("NODE2", {"source_id": "chunk2", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "2"}])})
+    await networkx_storage.upsert_edge("NODE1", "NODE2", {})
+    await networkx_storage.clustering(algorithm=algorithm)
+    community_schema = await networkx_storage.community_schema()
+    
+    levels = set(community['level'] for community in community_schema.values())
+    assert len(levels) >= 1, "Should have at least one level in the hierarchy"
+    
+    communities_per_level = {level: sum(1 for c in community_schema.values() if c['level'] == level) for level in levels}
+    assert communities_per_level[0] >= communities_per_level.get(max(levels), 0), "Lower levels should have more or equal number of communities"
+
+
 @pytest.mark.asyncio
 async def test_persistence(setup_teardown):
     rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
@@ -207,6 +262,17 @@ async def test_stable_largest_connected_component_equal_components():
 
 
 @pytest.mark.asyncio
+async def test_stable_largest_connected_component_stability():
+    G = nx.Graph()
+    G.add_edges_from([("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")])
+    result1 = NetworkXStorage.stable_largest_connected_component(G)
+    result2 = NetworkXStorage.stable_largest_connected_component(G)
+    assert nx.is_isomorphic(result1, result2)
+    assert list(result1.nodes()) == list(result2.nodes())
+    assert list(result1.edges()) == list(result2.edges())
+
+
+@pytest.mark.asyncio
 async def test_stable_largest_connected_component_directed_graph():
     G = nx.DiGraph()
     G.add_edges_from([("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")])
@@ -232,6 +298,48 @@ async def test_community_schema_with_no_clusters(networkx_storage):
     
     community_schema = await networkx_storage.community_schema()
     assert len(community_schema) == 0
+
+
+@pytest.mark.asyncio
+async def test_community_schema_multiple_levels(networkx_storage):
+    await networkx_storage.upsert_node("node1", {"source_id": "chunk1", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "1"}])})
+    await networkx_storage.upsert_node("node2", {"source_id": "chunk2", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "2"}])})
+    await networkx_storage.upsert_edge("node1", "node2", {})
+    
+    community_schema = await networkx_storage.community_schema()
+    assert len(community_schema) == 3
+    assert set(community_schema.keys()) == {"0", "1", "2"}
+    assert community_schema["0"]["level"] == 0
+    assert community_schema["1"]["level"] == 1
+    assert community_schema["2"]["level"] == 1
+    assert set(community_schema["0"]["sub_communities"]) == {"1", "2"}
+
+
+@pytest.mark.asyncio
+async def test_community_schema_occurrence(networkx_storage):
+    await networkx_storage.upsert_node("node1", {"source_id": "chunk1,chunk2", "clusters": json.dumps([{"level": 0, "cluster": "0"}])})
+    await networkx_storage.upsert_node("node2", {"source_id": "chunk3", "clusters": json.dumps([{"level": 0, "cluster": "0"}])})
+    await networkx_storage.upsert_node("node3", {"source_id": "chunk4", "clusters": json.dumps([{"level": 0, "cluster": "1"}])})
+    
+    community_schema = await networkx_storage.community_schema()
+    assert len(community_schema) == 2
+    assert community_schema["0"]["occurrence"] == 1
+    assert community_schema["1"]["occurrence"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_community_schema_sub_communities(networkx_storage):
+    await networkx_storage.upsert_node("node1", {"source_id": "chunk1", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "1"}])})
+    await networkx_storage.upsert_node("node2", {"source_id": "chunk2", "clusters": json.dumps([{"level": 0, "cluster": "0"}, {"level": 1, "cluster": "2"}])})
+    await networkx_storage.upsert_node("node3", {"source_id": "chunk3", "clusters": json.dumps([{"level": 0, "cluster": "3"}, {"level": 1, "cluster": "4"}])})
+    
+    community_schema = await networkx_storage.community_schema()
+    assert len(community_schema) == 5
+    assert set(community_schema["0"]["sub_communities"]) == {"1", "2"}
+    assert community_schema["3"]["sub_communities"] == ["4"]
+    assert community_schema["1"]["sub_communities"] == []
+    assert community_schema["2"]["sub_communities"] == []
+    assert community_schema["4"]["sub_communities"] == []
 
 
 @pytest.mark.asyncio
