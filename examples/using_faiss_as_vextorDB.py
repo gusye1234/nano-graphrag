@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import faiss
 import pickle
 import logging
+import xxhash
 logging.getLogger('msal').setLevel(logging.WARNING)
 logging.getLogger('azure').setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -26,7 +27,7 @@ class FAISSStorage(BaseVectorStorage):
         )
         self._max_batch_size = self.global_config["embedding_batch_num"]
         
-        if os.path.exists(self._index_file_name):
+        if os.path.exists(self._index_file_name) and os.path.exists(self._metadata_file_name):
             self._index = faiss.read_index(self._index_file_name)
             with open(self._metadata_file_name, 'rb') as f:
                 self._metadata = pickle.load(f)
@@ -49,17 +50,15 @@ class FAISSStorage(BaseVectorStorage):
         
         ids = []
         for k, v in data.items():
+            id = xxhash.xxh32_intdigest(k.encode())
             metadata = {k1: v1 for k1, v1 in v.items() if k1 in self.meta_fields}
             metadata['id'] = k
-            self._metadata[k] = metadata
-            ids.append(int(k) if k.isdigit() else hash(k))
+            self._metadata[id] = metadata
+            ids.append(id)
         
         ids = np.array(ids, dtype=np.int64)
         self._index.add_with_ids(embeddings, ids)
         
-        faiss.write_index(self._index, self._index_file_name)
-        with open(self._metadata_file_name, 'wb') as f:
-            pickle.dump(self._metadata, f)
         
         return len(data)
 
@@ -68,14 +67,18 @@ class FAISSStorage(BaseVectorStorage):
         distances, indices = self._index.search(embedding, top_k)
         
         results = []
-        for i, (distance, idx) in enumerate(zip(distances[0], indices[0])):
-            if idx != -1:  # FAISS returns -1 for empty slots
-                id_str = str(idx)
-                if id_str in self._metadata:
-                    metadata = self._metadata[id_str]
+        for _, (distance, id) in enumerate(zip(distances[0], indices[0])):
+            if id != -1:  # FAISS returns -1 for empty slots
+                if id in self._metadata:
+                    metadata = self._metadata[id]
                     results.append({**metadata, "distance": 1 - distance})  # Convert to cosine distance
         
         return results
+    
+    async def index_done_callback(self):
+        faiss.write_index(self._index, self._index_file_name)
+        with open(self._metadata_file_name, 'wb') as f:
+            pickle.dump(self._metadata, f)
 
 if __name__ == "__main__":
 
