@@ -4,16 +4,37 @@ import json
 import logging
 import os
 import re
+import numbers
 from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import tiktoken
 
 logger = logging.getLogger("nano-graphrag")
 ENCODER = None
+
+
+def locate_json_string_body_from_string(content: str) -> Union[str, None]:
+    """Locate the JSON string body from a string"""
+    maybe_json_str = re.search(r"{.*}", content, re.DOTALL)
+    if maybe_json_str is not None:
+        return maybe_json_str.group(0)
+    else:
+        return None
+
+
+def convert_response_to_json(response: str) -> dict:
+    json_str = locate_json_string_body_from_string(response)
+    assert json_str is not None, f"Unable to parse JSON from response: {response}"
+    try:
+        data = json.loads(json_str)
+        return data
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON: {json_str}")
+        raise e from None
 
 
 def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
@@ -34,6 +55,8 @@ def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
 
 def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
     """Truncate a list of data by token size"""
+    if max_token_size <= 0:
+        return []
     tokens = 0
     for i, data in enumerate(list_data):
         tokens += len(encode_string_by_tiktoken(key(data)))
@@ -82,9 +105,21 @@ def split_string_by_multi_markers(content: str, markers: list[str]) -> list[str]
     return [r.strip() for r in results if r.strip()]
 
 
+def enclose_string_with_quotes(content: Any) -> str:
+    """Enclose a string with quotes"""
+    if isinstance(content, numbers.Number):
+        return str(content)
+    content = str(content)
+    content = content.strip().strip("'").strip('"')
+    return f'"{content}"'
+
+
 def list_of_list_to_csv(data: list[list]):
     return "\n".join(
-        [",\t".join([str(data_dd) for data_dd in data_d]) for data_d in data]
+        [
+            ",\t".join([f"{enclose_string_with_quotes(data_dd)}" for data_dd in data_d])
+            for data_d in data
+        ]
     )
 
 
@@ -114,7 +149,7 @@ class EmbeddingFunc:
 
 
 # Decorators ------------------------------------------------------------------------
-def limit_async_func_call(max_size: int, waitting_time: float = 0.001):
+def limit_async_func_call(max_size: int, waitting_time: float = 0.0001):
     """Add restriction of maximum async calling times for a async func"""
 
     def final_decro(func):

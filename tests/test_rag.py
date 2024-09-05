@@ -3,7 +3,6 @@ import shutil
 import numpy as np
 from nano_graphrag import GraphRAG, QueryParam
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
-from sentence_transformers import SentenceTransformer
 
 os.environ["OPENAI_API_KEY"] = "FAKE"
 
@@ -19,16 +18,12 @@ shutil.copy(
     os.path.join(WORKING_DIR, "kv_store_llm_response_cache.json"),
 )
 FAKE_RESPONSE = "Hello world"
-EMBED_MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 
 # We're using Sentence Transformers to generate embeddings for the BGE model
-@wrap_embedding_func_with_attrs(
-    embedding_dim=EMBED_MODEL.get_sentence_embedding_dimension(),
-    max_token_size=EMBED_MODEL.max_seq_length,
-)
+@wrap_embedding_func_with_attrs(embedding_dim=384, max_token_size=8192)
 async def local_embedding(texts: list[str]) -> np.ndarray:
-    return EMBED_MODEL.encode(texts, normalize_embeddings=True)
+    return np.random.rand(len(texts), 384)
 
 
 def test_insert():

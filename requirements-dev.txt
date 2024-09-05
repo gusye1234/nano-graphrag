@@ -1,3 +1,5 @@
-sentence_transformers
 flake8
 pytest
+future
+pytest-asyncio
+pytest-cov

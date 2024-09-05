@@ -1,24 +1,38 @@
 import os
 import logging
-from openai import AsyncOpenAI
+import ollama
+import numpy as np
 from nano_graphrag import GraphRAG, QueryParam
 from nano_graphrag import GraphRAG, QueryParam
 from nano_graphrag.base import BaseKVStorage
-from nano_graphrag._utils import compute_args_hash
+from nano_graphrag._utils import compute_args_hash, wrap_embedding_func_with_attrs
+from sentence_transformers import SentenceTransformer
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nano-graphrag").setLevel(logging.INFO)
 
-DEEPSEEK_API_KEY = "sk-XXXX"
-MODEL = "deepseek-chat"
+# !!! qwen2-7B maybe produce unparsable results and cause the extraction of graph to fail.
+WORKING_DIR = "./nano_graphrag_cache_ollama_TEST"
+MODEL = "qwen2"
+
+EMBED_MODEL = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2", cache_folder=WORKING_DIR, device="cpu"
+)
 
 
-async def deepseepk_model_if_cache(
+# We're using Sentence Transformers to generate embeddings for the BGE model
+@wrap_embedding_func_with_attrs(
+    embedding_dim=EMBED_MODEL.get_sentence_embedding_dimension(),
+    max_token_size=EMBED_MODEL.max_seq_length,
+)
+async def local_embedding(texts: list[str]) -> np.ndarray:
+    return EMBED_MODEL.encode(texts, normalize_embeddings=True)
+
+
+async def ollama_model_if_cache(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    openai_async_client = AsyncOpenAI(
-        api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com"
-    )
+    ollama_client = ollama.AsyncClient()
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -33,18 +47,14 @@ async def deepseepk_model_if_cache(
         if if_cache_return is not None:
             return if_cache_return["return"]
     # -----------------------------------------------------
+    response = await ollama_client.chat(model=MODEL, messages=messages, **kwargs)
 
-    response = await openai_async_client.chat.completions.create(
-        model=MODEL, messages=messages, **kwargs
-    )
-
+    result = response["message"]["content"]
     # Cache the response if having-------------------
     if hashing_kv is not None:
-        await hashing_kv.upsert(
-            {args_hash: {"return": response.choices[0].message.content, "model": MODEL}}
-        )
+        await hashing_kv.upsert({args_hash: {"return": result, "model": MODEL}})
     # -----------------------------------------------------
-    return response.choices[0].message.content
+    return result
 
 
 def remove_if_exist(file):
@@ -52,14 +62,12 @@ def remove_if_exist(file):
         os.remove(file)
 
 
-WORKING_DIR = "./nano_graphrag_cache_deepseek_TEST"
-
-
 def query():
     rag = GraphRAG(
         working_dir=WORKING_DIR,
-        best_model_func=deepseepk_model_if_cache,
-        cheap_model_func=deepseepk_model_if_cache,
+        best_model_func=ollama_model_if_cache,
+        cheap_model_func=ollama_model_if_cache,
+        embedding_func=local_embedding,
     )
     print(
         rag.query(
@@ -83,8 +91,9 @@ def insert():
     rag = GraphRAG(
         working_dir=WORKING_DIR,
         enable_llm_cache=True,
-        best_model_func=deepseepk_model_if_cache,
-        cheap_model_func=deepseepk_model_if_cache,
+        best_model_func=ollama_model_if_cache,
+        cheap_model_func=ollama_model_if_cache,
+        embedding_func=local_embedding,
     )
     start = time()
     rag.insert(FAKE_TEXT)
@@ -95,4 +104,4 @@ def insert():
 
 if __name__ == "__main__":
     insert()
-    # query()
+    query()

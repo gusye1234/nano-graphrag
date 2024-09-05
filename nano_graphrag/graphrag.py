@@ -13,13 +13,20 @@ from ._op import (
     generate_community_report,
     local_query,
     global_query,
+    naive_query,
 )
 from ._storage import (
     JsonKVStorage,
     NanoVectorDBStorage,
     NetworkXStorage,
 )
-from ._utils import EmbeddingFunc, compute_mdhash_id, limit_async_func_call, logger
+from ._utils import (
+    EmbeddingFunc,
+    compute_mdhash_id,
+    limit_async_func_call,
+    convert_response_to_json,
+    logger,
+)
 from .base import (
     BaseGraphStorage,
     BaseKVStorage,
@@ -29,6 +36,18 @@ from .base import (
 )
 
 
+def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
+    try:
+        # If there is already an event loop, use it.
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # If in a sub-thread, create a new event loop.
+        logger.info("Creating a new event loop in a sub-thread.")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop
+
+
 @dataclass
 class GraphRAG:
     working_dir: str = field(
@@ -36,6 +55,7 @@ class GraphRAG:
     )
     # graph mode
     enable_local: bool = True
+    enable_naive_rag: bool = False
 
     # text chunking
     chunk_token_size: int = 1200
@@ -86,11 +106,13 @@ class GraphRAG:
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = NanoVectorDBStorage
+    vector_db_storage_cls_kwargs: dict = field(default_factory=dict)
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
     enable_llm_cache: bool = True
 
     # extension
     addon_params: dict = field(default_factory=dict)
+    convert_response_to_json_func: callable = convert_response_to_json
 
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
@@ -136,6 +158,15 @@ class GraphRAG:
             if self.enable_local
             else None
         )
+        self.chunks_vdb = (
+            self.vector_db_storage_cls(
+                namespace="chunks",
+                global_config=asdict(self),
+                embedding_func=self.embedding_func,
+            )
+            if self.enable_naive_rag
+            else None
+        )
 
         self.best_model_func = limit_async_func_call(self.best_model_max_async)(
             partial(self.best_model_func, hashing_kv=self.llm_response_cache)
@@ -145,16 +176,22 @@ class GraphRAG:
         )
 
     def insert(self, string_or_strings):
-        loop = asyncio.get_event_loop()
+        loop = always_get_an_event_loop()
         return loop.run_until_complete(self.ainsert(string_or_strings))
 
     def query(self, query: str, param: QueryParam = QueryParam()):
-        loop = asyncio.get_event_loop()
+        loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
+
+    def eval(self, querys: list[str], contexts: list[str], answers: list[str]):
+        loop = always_get_an_event_loop()
+        return loop.run_until_complete(self.aeval(querys, contexts, answers))
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
+        if param.mode == "naive" and not self.enable_naive_rag:
+            raise ValueError("enable_naive_rag is False, cannot query in local mode")
         if param.mode == "local":
             response = await local_query(
                 query,
@@ -171,6 +208,14 @@ class GraphRAG:
                 self.chunk_entity_relation_graph,
                 self.entities_vdb,
                 self.community_reports,
+                self.text_chunks,
+                param,
+                asdict(self),
+            )
+        elif param.mode == "naive":
+            response = await naive_query(
+                query,
+                self.chunks_vdb,
                 self.text_chunks,
                 param,
                 asdict(self),
@@ -212,7 +257,7 @@ class GraphRAG:
                     )
                 }
                 inserting_chunks.update(chunks)
-            _add_chunk_keys = await self.full_docs.filter_keys(
+            _add_chunk_keys = await self.text_chunks.filter_keys(
                 list(inserting_chunks.keys())
             )
             inserting_chunks = {
@@ -222,6 +267,9 @@ class GraphRAG:
                 logger.warning(f"All chunks are already in the storage")
                 return
             logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
+            if self.enable_naive_rag:
+                logger.info("Insert chunks for naive RAG")
+                await self.chunks_vdb.upsert(inserting_chunks)
 
             # TODO: no incremental update for communities now, so just drop all
             await self.community_reports.drop()
@@ -253,6 +301,9 @@ class GraphRAG:
         finally:
             await self._insert_done()
 
+    async def aeval(self, querys: list[str], contexts: list[str], answers: list[str]):
+        pass
+
     async def _insert_done(self):
         tasks = []
         for storage_inst in [
@@ -261,6 +312,7 @@ class GraphRAG:
             self.llm_response_cache,
             self.community_reports,
             self.entities_vdb,
+            self.chunks_vdb,
             self.chunk_entity_relation_graph,
         ]:
             if storage_inst is None:

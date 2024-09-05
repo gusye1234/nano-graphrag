@@ -4,9 +4,6 @@ import re
 from typing import Union
 from collections import Counter, defaultdict
 
-from openai import AsyncOpenAI
-
-from ._llm import gpt_4o_complete
 from ._utils import (
     logger,
     clean_str,
@@ -241,9 +238,11 @@ async def extract_entities(
     if_loop_prompt = PROMPTS["entiti_if_loop_extraction"]
 
     already_processed = 0
+    already_entities = 0
+    already_relations = 0
 
     async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]):
-        nonlocal already_processed
+        nonlocal already_processed, already_entities, already_relations
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
@@ -296,16 +295,23 @@ async def extract_entities(
                     if_relation
                 )
         already_processed += 1
+        already_entities += len(maybe_nodes)
+        already_relations += len(maybe_edges)
         now_ticks = PROMPTS["process_tickers"][
             already_processed % len(PROMPTS["process_tickers"])
         ]
-        print(f"{now_ticks} Processed {already_processed} chunks\r", end="", flush=True)
+        print(
+            f"{now_ticks} Processed {already_processed} chunks, {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
+            end="",
+            flush=True,
+        )
         return dict(maybe_nodes), dict(maybe_edges)
 
     # use_llm_func is wrapped in ascynio.Semaphore, limiting max_async callings
     results = await asyncio.gather(
         *[_process_single_content(c) for c in ordered_chunks]
     )
+    print()  # clear the progress bar
     maybe_nodes = defaultdict(list)
     maybe_edges = defaultdict(list)
     for m_nodes, m_edges in results:
@@ -339,6 +345,49 @@ async def extract_entities(
         }
         await entity_vdb.upsert(data_for_vdb)
     return knwoledge_graph_inst
+
+
+def _pack_single_community_by_sub_communities(
+    community: SingleCommunitySchema,
+    max_token_size: int,
+    already_reports: dict[str, CommunitySchema],
+) -> tuple[str, int]:
+    # TODO
+    all_sub_communities = [
+        already_reports[k] for k in community["sub_communities"] if k in already_reports
+    ]
+    all_sub_communities = sorted(
+        all_sub_communities, key=lambda x: x["occurrence"], reverse=True
+    )
+    may_trun_all_sub_communities = truncate_list_by_token_size(
+        all_sub_communities,
+        key=lambda x: x["report_string"],
+        max_token_size=max_token_size,
+    )
+    sub_fields = ["id", "report", "rating", "importance"]
+    sub_communities_describe = list_of_list_to_csv(
+        [sub_fields]
+        + [
+            [
+                i,
+                c["report_string"],
+                c["report_json"].get("rating", -1),
+                c["occurrence"],
+            ]
+            for i, c in enumerate(may_trun_all_sub_communities)
+        ]
+    )
+    already_nodes = []
+    already_edges = []
+    for c in may_trun_all_sub_communities:
+        already_nodes.extend(c["nodes"])
+        already_edges.extend([tuple(e) for e in c["edges"]])
+    return (
+        sub_communities_describe,
+        len(encode_string_by_tiktoken(sub_communities_describe)),
+        set(already_nodes),
+        set(already_edges),
+    )
 
 
 async def _pack_single_community_describe(
@@ -386,22 +435,52 @@ async def _pack_single_community_describe(
     edges_may_truncate_list_data = truncate_list_by_token_size(
         edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
-    if len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
+
+    truncated = len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
         edges_list_data
-    ) > len(edges_may_truncate_list_data):
-        # If context is exceed the limit:
-        if not len(community["sub_communities"]):
-            pass
-        elif not len(already_reports):
-            logger.warning(
-                "unknown error for community reports, maybe the storage is damaged"
+    ) > len(edges_may_truncate_list_data)
+
+    # If context is exceed the limit and have sub-communities:
+    report_describe = ""
+    if truncated and len(community["sub_communities"]) and len(already_reports):
+        logger.info(
+            f"Community {community['title']} exceeds the limit, using its sub-communities"
+        )
+        report_describe, report_size, contain_nodes, contain_edges = (
+            _pack_single_community_by_sub_communities(
+                community, max_token_size, already_reports
             )
-        else:
-            pass
+        )
+        report_exclude_nodes_list_data = [
+            n for n in nodes_list_data if n[1] not in contain_nodes
+        ]
+        report_include_nodes_list_data = [
+            n for n in nodes_list_data if n[1] in contain_nodes
+        ]
+        report_exclude_edges_list_data = [
+            e for e in edges_list_data if (e[1], e[2]) not in contain_edges
+        ]
+        report_include_edges_list_data = [
+            e for e in edges_list_data if (e[1], e[2]) in contain_edges
+        ]
+        # if report size is bigger than max_token_size, nodes and edges are []
+        nodes_may_truncate_list_data = truncate_list_by_token_size(
+            report_exclude_nodes_list_data + report_include_nodes_list_data,
+            key=lambda x: x[3],
+            max_token_size=(max_token_size - report_size) // 2,
+        )
+        edges_may_truncate_list_data = truncate_list_by_token_size(
+            report_exclude_edges_list_data + report_include_edges_list_data,
+            key=lambda x: x[3],
+            max_token_size=(max_token_size - report_size) // 2,
+        )
     nodes_describe = list_of_list_to_csv([node_fields] + nodes_may_truncate_list_data)
     edges_describe = list_of_list_to_csv([edge_fields] + edges_may_truncate_list_data)
-
-    return f"""-----Entities-----
+    return f"""-----Reports-----
+```csv
+{report_describe}
+```
+-----Entities-----
 ```csv
 {nodes_describe}
 ```
@@ -440,6 +519,10 @@ async def generate_community_report(
 ):
     llm_extra_kwargs = global_config["special_community_report_llm_kwargs"]
     use_llm_func: callable = global_config["best_model_func"]
+    use_string_json_convert_func: callable = global_config[
+        "convert_response_to_json_func"
+    ]
+
     community_report_prompt = PROMPTS["community_report"]
 
     communities_schema = await knwoledge_graph_inst.community_schema()
@@ -456,10 +539,12 @@ async def generate_community_report(
             knwoledge_graph_inst,
             community,
             max_token_size=global_config["best_model_max_token_size"],
+            already_reports=already_reports,
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
-        data = json.loads(response)
+
+        data = use_string_json_convert_func(response)
         already_processed += 1
         now_ticks = PROMPTS["process_tickers"][
             already_processed % len(PROMPTS["process_tickers"])
@@ -502,6 +587,7 @@ async def generate_community_report(
                 )
             }
         )
+    print()  # clear the progress bar
     await community_report_kv.upsert(community_datas)
 
 
@@ -758,6 +844,8 @@ async def local_query(
         text_chunks_db,
         query_param,
     )
+    if query_param.only_need_context:
+        return context
     if context is None:
         return PROMPTS["fail_response"]
     sys_prompt_temp = PROMPTS["local_rag_response"]
@@ -777,6 +865,7 @@ async def _map_global_communities(
     query_param: QueryParam,
     global_config: dict,
 ):
+    use_string_json_convert_func = global_config["convert_response_to_json_func"]
     use_model_func = global_config["best_model_func"]
     community_groups = []
     while len(communities_data):
@@ -807,8 +896,8 @@ async def _map_global_communities(
             system_prompt=sys_prompt,
             **query_param.global_special_community_map_llm_kwargs,
         )
-        response = json.loads(response)
-        return response.get("points", [])
+        data = use_string_json_convert_func(response)
+        return data.get("points", [])
 
     logger.info(f"Grouping to {len(community_groups)} groups for global search")
     responses = await asyncio.gather(*[_process(c) for c in community_groups])
@@ -838,7 +927,7 @@ async def global_query(
         reverse=True,
     )
     sorted_community_schemas = sorted_community_schemas[
-        : query_param.global_max_conside_community
+        : query_param.global_max_consider_community
     ]
     community_datas = await community_reports.get_by_ids(
         [k[0] for k in sorted_community_schemas]
@@ -891,11 +980,47 @@ Importance Score: {dp['score']}
 """
         )
     points_context = "\n".join(points_context)
+    if query_param.only_need_context:
+        return points_context
     sys_prompt_temp = PROMPTS["global_reduce_rag_response"]
     response = await use_model_func(
         query,
         sys_prompt_temp.format(
             report_data=points_context, response_type=query_param.response_type
         ),
+    )
+    return response
+
+
+async def naive_query(
+    query,
+    chunks_vdb: BaseVectorStorage,
+    text_chunks_db: BaseKVStorage[TextChunkSchema],
+    query_param: QueryParam,
+    global_config: dict,
+):
+    use_model_func = global_config["best_model_func"]
+    results = await chunks_vdb.query(query, top_k=query_param.top_k)
+    if not len(results):
+        return PROMPTS["fail_response"]
+    chunks_ids = [r["id"] for r in results]
+    chunks = await text_chunks_db.get_by_ids(chunks_ids)
+
+    maybe_trun_chunks = truncate_list_by_token_size(
+        chunks,
+        key=lambda x: x["content"],
+        max_token_size=query_param.naive_max_token_for_text_unit,
+    )
+    logger.info(f"Truncate {len(chunks)} to {len(maybe_trun_chunks)} chunks")
+    section = "--New Chunk--\n".join([c["content"] for c in maybe_trun_chunks])
+    if query_param.only_need_context:
+        return section
+    sys_prompt_temp = PROMPTS["naive_rag_response"]
+    sys_prompt = sys_prompt_temp.format(
+        content_data=section, response_type=query_param.response_type
+    )
+    response = await use_model_func(
+        query,
+        system_prompt=sys_prompt,
     )
     return response
