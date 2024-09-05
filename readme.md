@@ -11,11 +11,15 @@
     <a href="https://pypi.org/project/nano-graphrag/">
       <img src="https://img.shields.io/pypi/v/nano-graphrag.svg">
     </a>
+    <a href="https://codecov.io/github/gusye1234/nano-graphrag" > 
+ <img src="https://codecov.io/github/gusye1234/nano-graphrag/graph/badge.svg?token=YFPMj9uQo7"/> 
+ </a>
     <a href="https://pepy.tech/project/nano-graphrag">
       <img src="https://static.pepy.tech/badge/nano-graphrag/month">
     </a>
   </p>
 </div>
+
 
 
 
