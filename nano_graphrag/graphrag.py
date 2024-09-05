@@ -13,6 +13,7 @@ from ._op import (
     generate_community_report,
     local_query,
     global_query,
+    naive_query,
 )
 from ._storage import (
     JsonKVStorage,
@@ -54,6 +55,7 @@ class GraphRAG:
     )
     # graph mode
     enable_local: bool = True
+    enable_naive_rag: bool = False
 
     # text chunking
     chunk_token_size: int = 1200
@@ -151,9 +153,18 @@ class GraphRAG:
                 namespace="entities",
                 global_config=asdict(self),
                 embedding_func=self.embedding_func,
-                meta_fields={"entity_name"}
+                meta_fields={"entity_name"},
             )
             if self.enable_local
+            else None
+        )
+        self.chunks_vdb = (
+            self.vector_db_storage_cls(
+                namespace="chunks",
+                global_config=asdict(self),
+                embedding_func=self.embedding_func,
+            )
+            if self.enable_naive_rag
             else None
         )
 
@@ -172,9 +183,15 @@ class GraphRAG:
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
 
+    def eval(self, querys: list[str], contexts: list[str], answers: list[str]):
+        loop = always_get_an_event_loop()
+        return loop.run_until_complete(self.aeval(querys, contexts, answers))
+
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
+        if param.mode == "naive" and not self.enable_naive_rag:
+            raise ValueError("enable_naive_rag is False, cannot query in local mode")
         if param.mode == "local":
             response = await local_query(
                 query,
@@ -191,6 +208,14 @@ class GraphRAG:
                 self.chunk_entity_relation_graph,
                 self.entities_vdb,
                 self.community_reports,
+                self.text_chunks,
+                param,
+                asdict(self),
+            )
+        elif param.mode == "naive":
+            response = await naive_query(
+                query,
+                self.chunks_vdb,
                 self.text_chunks,
                 param,
                 asdict(self),
@@ -242,6 +267,9 @@ class GraphRAG:
                 logger.warning(f"All chunks are already in the storage")
                 return
             logger.info(f"[New Chunks] inserting {len(inserting_chunks)} chunks")
+            if self.enable_naive_rag:
+                logger.info("Insert chunks for naive RAG")
+                await self.chunks_vdb.upsert(inserting_chunks)
 
             # TODO: no incremental update for communities now, so just drop all
             await self.community_reports.drop()
@@ -273,6 +301,9 @@ class GraphRAG:
         finally:
             await self._insert_done()
 
+    async def aeval(self, querys: list[str], contexts: list[str], answers: list[str]):
+        pass
+
     async def _insert_done(self):
         tasks = []
         for storage_inst in [
@@ -281,6 +312,7 @@ class GraphRAG:
             self.llm_response_cache,
             self.community_reports,
             self.entities_vdb,
+            self.chunks_vdb,
             self.chunk_entity_relation_graph,
         ]:
             if storage_inst is None:

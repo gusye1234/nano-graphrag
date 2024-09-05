@@ -473,6 +473,20 @@ Do not include information where the supporting evidence for it is not provided.
 Add sections and commentary to the response as appropriate for the length and format. Style the response in markdown.
 """
 
+PROMPTS[
+    "naive_rag_response"
+] = """You're a helpful assistant
+Below are the knowledge you know:
+{content_data}
+---
+If you don't know the answer or if the provided knowledge do not contain sufficient information to provide an answer, just say so. Do not make anything up.
+Generate a response of the target length and format that responds to the user's question, summarizing all information in the input data tables appropriate for the response length and format, and incorporating any relevant general knowledge.
+If you don't know the answer, just say so. Do not make anything up.
+Do not include information where the supporting evidence for it is not provided.
+---Target response length and format---
+{response_type}
+"""
+
 PROMPTS["fail_response"] = "Sorry, I'm not able to provide an answer to that question."
 
 PROMPTS["process_tickers"] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
