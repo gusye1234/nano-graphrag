@@ -43,14 +43,14 @@ jobs:
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Build and Test
         run: |
-          python -m pytest -o log_cli=true -o log_cli_level="INFO" -v ./
-    #   - name: Check codecov file
-    #     id: check_files
-    #     uses: andstor/file-existence-action@v1
-    #     with:
-    #       files: './coverage.xml'
-    #   - name: Upload coverage from test to Codecov
-    #     uses: codecov/codecov-action@v2
-    #     with:
-    #       file: ./coverage.xml
-    #       token: ${{ secrets.CODECOV_TOKEN }}
+          python -m pytest -o log_cli=true -o log_cli_level="INFO" --cov=nano_graphrag --cov-report=xml -v ./
+      - name: Check codecov file
+        id: check_files
+        uses: andstor/file-existence-action@v1
+        with:
+          files: './coverage.xml'
+      - name: Upload coverage from test to Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          file: ./coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
