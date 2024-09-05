@@ -344,10 +344,12 @@ class NetworkXStorage(BaseGraphStorage):
         return self._graph.nodes.get(node_id)
 
     async def node_degree(self, node_id: str) -> int:
-        return self._graph.degree(node_id)
+        # [numberchiffre]: node_id not part of graph returns `DegreeView({})` instead of 0
+        return self._graph.degree(node_id) if self._graph.has_node(node_id) else 0
 
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
-        return self._graph.degree(src_id) + self._graph.degree(tgt_id)
+        return (self._graph.degree(src_id) if self._graph.has_node(src_id) else 0) + \
+               (self._graph.degree(tgt_id) if self._graph.has_node(tgt_id) else 0)
 
     async def get_edge(
         self, source_node_id: str, target_node_id: str
