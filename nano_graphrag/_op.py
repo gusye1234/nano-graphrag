@@ -395,6 +395,7 @@ async def _pack_single_community_describe(
     community: SingleCommunitySchema,
     max_token_size: int = 12000,
     already_reports: dict[str, CommunitySchema] = {},
+    global_config: dict = {},
 ) -> str:
     nodes_in_order = sorted(community["nodes"])
     edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
@@ -442,9 +443,15 @@ async def _pack_single_community_describe(
 
     # If context is exceed the limit and have sub-communities:
     report_describe = ""
-    if truncated and len(community["sub_communities"]) and len(already_reports):
-        logger.info(
-            f"Community {community['title']} exceeds the limit, using its sub-communities"
+    need_to_use_sub_communities = (
+        truncated and len(community["sub_communities"]) and len(already_reports)
+    )
+    force_to_use_sub_communities = global_config["addon_params"].get(
+        "force_to_use_sub_communities", False
+    )
+    if need_to_use_sub_communities or force_to_use_sub_communities:
+        logger.debug(
+            f"Community {community['title']} exceeds the limit or you set force_to_use_sub_communities to True, using its sub-communities"
         )
         report_describe, report_size, contain_nodes, contain_edges = (
             _pack_single_community_by_sub_communities(
@@ -540,6 +547,7 @@ async def generate_community_report(
             community,
             max_token_size=global_config["best_model_max_token_size"],
             already_reports=already_reports,
+            global_config=global_config,
         )
         prompt = community_report_prompt.format(input_text=describe)
         response = await use_llm_func(prompt, **llm_extra_kwargs)
