@@ -154,6 +154,8 @@ Below are the components you can use:
 | Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |             Built-in             |
 |                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        | Built-in, [examples](./examples) |
 |                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
+|                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |      [examples](./examples)      |
+| Visualization   |                           graphml                            |      [examples](./examples)      |
 
 - `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
@@ -312,21 +314,21 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 
 ## FQA
 
-Check [FQA](./FAQ.md).
+Check [FQA](./docs/FAQ.md).
 
 
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md)
+See [ROADMAP.md](./docs/ROADMAP.md)
 
 
 
 
 ## Benchmark
 
-- [benchmark for English](./benchmark-en.md)
-- [benchmark for Chinese](./benchmark-zh.md)
+- [benchmark for English](./docs/benchmark-en.md)
+- [benchmark for Chinese](./docs/benchmark-zh.md)
 
 
 
