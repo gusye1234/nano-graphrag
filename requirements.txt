@@ -6,4 +6,4 @@ nano-vectordb
 hnswlib
 xxhash
 tenacity
-dspy
+dspy-ai
