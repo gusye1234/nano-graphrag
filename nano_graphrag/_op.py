@@ -3,6 +3,7 @@ import json
 import re
 from typing import Union
 from collections import Counter, defaultdict
+import dspy
 
 from ._utils import (
     logger,
@@ -214,6 +215,195 @@ async def _merge_edges_then_upsert(
             source_id=source_id,
         ),
     )
+
+
+class EntityTypeExtractionSignature(dspy.Signature):
+    input_text = dspy.InputField(desc="The text to extract entity types from")
+    entity_types = dspy.OutputField(desc="List of entity types present in the text separated by commas and make sure they are unique and important based on the text's context, e.g. [person, event, technology, mission, organization, location]")
+
+
+class EntityExtractionSignature(dspy.Signature):
+    input_text = dspy.InputField(desc="The text to extract entities and relationships from")
+    entities = dspy.OutputField(desc="List of extracted entities with their types, descriptions, and importance scores, make sure descriptions are detailed and specific, and all entity types are included mentioned from the text")
+    relationships = dspy.OutputField(desc="List of relationships between entities, including detailed descriptions and importance scores")
+    reasoning = dspy.OutputField(desc="Step-by-step reasoning for entity, relationship, and event extraction, making sure all entities and relationships are mentioned from the text are considered")
+
+
+class EntityGleaningSignature(dspy.Signature):
+    context = dspy.InputField(desc="The current context including extracted entities and relationships")
+    entities = dspy.OutputField(desc="List of additional extracted entities with their types, descriptions, and importance scores")
+    relationships = dspy.OutputField(desc="List of additional relationships between entities, including detailed descriptions and importance scores")
+    continue_gleaning = dspy.OutputField(desc="Boolean indicating whether to continue gleaning or not")
+
+
+class EntityGleaner(dspy.Module):
+    def __init__(self, global_config):
+        super().__init__()
+        self.gleaner = dspy.ChainOfThought(EntityGleaningSignature)
+        self.global_config = global_config
+
+    def forward(self, context):
+        result = self.gleaner(context=context)
+        return result.entities, result.relationships, result.continue_gleaning
+
+
+class EntityExtractor(dspy.Module):
+    def __init__(self, global_config):
+        super().__init__()
+        self.type_extractor = dspy.TypedPredictor(EntityTypeExtractionSignature)
+        self.extractor = dspy.ChainOfThought(EntityExtractionSignature)
+        # self.gleaner = EntityGleaner(global_config)
+        self.global_config = global_config
+        self.prompt_template = PROMPTS["entity_extraction"]
+        self.context_base = dict(
+            tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
+            record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
+            completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
+        )
+
+    def forward(self, input_text: str, chunk_key: str):
+        type_result = self.type_extractor(input_text=input_text)
+        entity_types = type_result.entity_types.split(',')
+        formatted_prompt = self.prompt_template.format(
+            input_text=input_text,
+            entity_types=entity_types,
+            **self.context_base
+        )
+        extraction_result = self.extractor(input_text=formatted_prompt)
+        entities = self.handle_single_entity_extraction(extraction_result.entities, chunk_key)
+        relationships = self.handle_single_relationship_extraction(extraction_result.relationships, chunk_key)
+        # context = self.format_context(entities, relationships)
+        
+        # for _ in range(self.global_config["entity_extract_max_gleaning"]):
+        #     additional_entities, additional_relationships, continue_gleaning = self.gleaner(context)
+        #     entities.extend(self.handle_single_entity_extraction(additional_entities, chunk_key))
+        #     relationships.extend(self.handle_single_relationship_extraction(additional_relationships, chunk_key))
+        #     context = self.format_context(entities, relationships)
+            
+        #     if not continue_gleaning:
+        #         break
+
+        return entities, relationships
+
+    def format_context(self, entities, relationships):
+        entity_context = "\n".join([f"{e['entity_name']} ({e['entity_type']}): {e['description']}" for e in entities])
+        relationship_context = "\n".join([f"{r['src_id']} -> {r['tgt_id']}: {r['description']}" for r in relationships])
+        return f"Entities:\n{entity_context}\n\nRelationships:\n{relationship_context}"
+
+    def handle_single_entity_extraction(self, entities: str, chunk_key: str):
+        entities_list = entities.split('\n')
+        extracted_entities = []
+        for entity in entities_list:
+            match = re.match(r'\d+\.\s*\("entity"<\|>"([^"]+)"<\|>"([^"]+)"<\|>"([^"]+)"\)', entity)
+            if match:
+                entity_name = clean_str(match.group(1).upper())
+                entity_type = clean_str(match.group(2).upper())
+                entity_description = clean_str(match.group(3))
+                extracted_entities.append(dict(
+                    entity_name=entity_name,
+                    entity_type=entity_type,
+                    description=entity_description,
+                    source_id=chunk_key,
+                ))
+        return extracted_entities
+
+    def handle_single_relationship_extraction(self, relationships: str, chunk_key: str):
+        relationships_list = relationships.split('\n')
+        extracted_relationships = []
+        for relationship in relationships_list:
+            match = re.match(r'\d+\.\s*\("relationship"<\|>"([^"]+)"<\|>"([^"]+)"<\|>"([^"]+)"<\|>([0-9.]+)\)', relationship)
+            if match:
+                source = clean_str(match.group(1).upper())
+                target = clean_str(match.group(2).upper())
+                edge_description = clean_str(match.group(3))
+                importance_score = float(match.group(4)) if is_float_regex(match.group(4)) else 1.0
+                extracted_relationships.append(dict(
+                    src_id=source,
+                    tgt_id=target,
+                    weight=importance_score,
+                    description=edge_description,
+                    source_id=chunk_key,
+                ))
+        return extracted_relationships
+
+
+async def extract_entities_dspy(
+    chunks: dict[str, TextChunkSchema],
+    knwoledge_graph_inst: BaseGraphStorage,
+    entity_vdb: BaseVectorStorage,
+    global_config: dict,
+) -> Union[BaseGraphStorage, None]:
+    entity_extractor = EntityExtractor(global_config)
+    ordered_chunks = list(chunks.items())
+    already_processed = 0
+    already_entities = 0
+    already_relations = 0
+
+    async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]):
+        nonlocal already_processed, already_entities, already_relations
+        chunk_key = chunk_key_dp[0]
+        chunk_dp = chunk_key_dp[1]
+        content = chunk_dp["content"]
+        entities, relationships = entity_extractor(input_text=content, chunk_key=chunk_key)
+
+        maybe_nodes = defaultdict(list)
+        maybe_edges = defaultdict(list)
+
+        for entity in entities:
+            maybe_nodes[entity["entity_name"]].append(entity)
+            already_entities += 1
+
+        for relationship in relationships:
+            maybe_edges[(relationship["src_id"], relationship["tgt_id"])].append(relationship)
+            already_relations += 1
+        
+        already_processed += 1
+        now_ticks = PROMPTS["process_tickers"][
+            already_processed % len(PROMPTS["process_tickers"])
+        ]
+        print(
+            f"{now_ticks} Processed {already_processed} chunks, {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
+            end="",
+            flush=True,
+        )
+        return dict(maybe_nodes), dict(maybe_edges)
+
+    results = await asyncio.gather(
+        *[_process_single_content(c) for c in ordered_chunks]
+    )
+    print()  # clear the progress bar
+    maybe_nodes = defaultdict(list)
+    maybe_edges = defaultdict(list)
+    for m_nodes, m_edges in results:
+        for k, v in m_nodes.items():
+            maybe_nodes[k].extend(v)
+        for k, v in m_edges.items():
+            maybe_edges[k].extend(v)
+    all_entities_data = await asyncio.gather(
+        *[
+            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
+            for k, v in maybe_nodes.items()
+        ]
+    )
+    await asyncio.gather(
+        *[
+            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config)
+            for k, v in maybe_edges.items()
+        ]
+    )
+    if not len(all_entities_data):
+        logger.warning("Didn't extract any entities, maybe your LLM is not working")
+        return None
+    if entity_vdb is not None:
+        data_for_vdb = {
+            compute_mdhash_id(dp["entity_name"], prefix="ent-"): {
+                "content": dp["entity_name"] + dp["description"],
+                "entity_name": dp["entity_name"],
+            }
+            for dp in all_entities_data
+        }
+        await entity_vdb.upsert(data_for_vdb)
+    return knwoledge_graph_inst
 
 
 async def extract_entities(

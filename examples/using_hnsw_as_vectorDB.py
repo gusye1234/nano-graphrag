@@ -61,6 +61,7 @@ def insert():
     from time import time
 
     with open("./tests/mock_data.txt", encoding="utf-8-sig") as f:
+    # with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
         FAKE_TEXT = f.read()
 
     remove_if_exist(f"{WORKING_DIR}/vdb_entities.json")
@@ -108,7 +109,49 @@ def query():
         )
     )
 
+import dspy
+from openai import OpenAI
+
+
+class DeepSeek(dspy.Module):
+    def __init__(self, model, api_key, **kwargs):
+        self.model = model
+        self.api_key = api_key
+        self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        self.provider = "default", 
+        self.history = [] 
+        self.kwargs = {
+            "temperature": 0.2,
+            "max_tokens": 2048,
+            **kwargs
+        }
+
+    def basic_request(self, prompt, **kwargs):
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            stream=False,
+            **self.kwargs
+        )
+        self.history.append({"prompt": prompt, "response": response})
+        return response 
+
+    def __call__(self, prompt, only_completed=True, return_sorted=False, **kwargs):
+        response = self.basic_request(prompt, **kwargs)
+        completions = [choice.message.content for choice in response.choices]
+        return completions 
+
+    def inspect_history(self, n: int = 1):
+        if len(self.history) < n:
+            return self.history
+        return self.history[-n:]
+
 
 if __name__ == "__main__":
+    lm = DeepSeek(model="deepseek-chat", api_key=os.environ["DEEPSEEK_API_KEY"])
+    dspy.settings.configure(lm=lm)
     insert()
     query()
