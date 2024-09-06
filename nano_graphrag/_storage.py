@@ -21,7 +21,6 @@ from .base import (
 )
 from .prompt import GRAPH_FIELD_SEP
 
-
 @dataclass
 class JsonKVStorage(BaseKVStorage):
     def __post_init__(self):
