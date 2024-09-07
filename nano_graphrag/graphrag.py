@@ -184,10 +184,6 @@ class GraphRAG:
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
 
-    def eval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        loop = always_get_an_event_loop()
-        return loop.run_until_complete(self.aeval(querys, contexts, answers))
-
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
@@ -301,9 +297,6 @@ class GraphRAG:
             await self.text_chunks.upsert(inserting_chunks)
         finally:
             await self._insert_done()
-
-    async def aeval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        pass
 
     async def _insert_done(self):
         tasks = []
