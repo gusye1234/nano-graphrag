@@ -21,6 +21,7 @@ from .base import (
 )
 from .prompt import GRAPH_FIELD_SEP
 
+
 @dataclass
 class JsonKVStorage(BaseKVStorage):
     def __post_init__(self):
@@ -76,7 +77,7 @@ class NanoVectorDBStorage(BaseVectorStorage):
             self.embedding_func.embedding_dim, storage_file=self._client_file_name
         )
         self.cosine_better_than_threshold = self.global_config.get(
-            "cosine_better_than_threshold", self.cosine_better_than_threshold
+            "query_better_than_threshold", self.cosine_better_than_threshold
         )
 
     async def upsert(self, data: dict[str, dict]):
@@ -347,8 +348,9 @@ class NetworkXStorage(BaseGraphStorage):
         return self._graph.degree(node_id) if self._graph.has_node(node_id) else 0
 
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
-        return (self._graph.degree(src_id) if self._graph.has_node(src_id) else 0) + \
-               (self._graph.degree(tgt_id) if self._graph.has_node(tgt_id) else 0)
+        return (self._graph.degree(src_id) if self._graph.has_node(src_id) else 0) + (
+            self._graph.degree(tgt_id) if self._graph.has_node(tgt_id) else 0
+        )
 
     async def get_edge(
         self, source_node_id: str, target_node_id: str

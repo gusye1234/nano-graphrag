@@ -94,6 +94,7 @@ class GraphRAG:
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
+    query_better_than_threshold: float = 0.2
 
     # LLM
     best_model_func: callable = gpt_4o_complete
