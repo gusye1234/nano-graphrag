@@ -12,7 +12,7 @@ from .base import BaseKVStorage
 
 
 @retry(
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=4, max=10),
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
 )
@@ -69,7 +69,7 @@ async def gpt_4o_mini_complete(
 
 @wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
 @retry(
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=4, max=10),
     retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
 )

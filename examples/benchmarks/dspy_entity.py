@@ -1,57 +1,19 @@
 import dspy
 import os
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 import logging
 import asyncio
-from nano_graphrag._op import extract_entities, extract_entities_dspy
+from nano_graphrag.entity_extraction.extract import extract_entities_dspy
 from nano_graphrag._storage import NetworkXStorage, BaseKVStorage
 from nano_graphrag._utils import compute_mdhash_id, compute_args_hash
-from nano_graphrag.prompt import PROMPTS
 
 WORKING_DIR = "./nano_graphrag_cache_dspy_entity"
 
 load_dotenv()
 
-logging.basicConfig(level=logging.WARNING)
-logging.getLogger("nano-graphrag").setLevel(logging.DEBUG)
-
-
-class DeepSeek(dspy.Module):
-    def __init__(self, model, api_key, **kwargs):
-        self.model = model
-        self.api_key = api_key
-        self.client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
-        self.provider = "default", 
-        self.history = [] 
-        self.kwargs = {
-            "temperature": 0.2,
-            "max_tokens": 2048,
-            **kwargs
-        }
-
-    def basic_request(self, prompt, **kwargs):
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            stream=False,
-            **self.kwargs
-        )
-        self.history.append({"prompt": prompt, "response": response})
-        return response 
-
-    def __call__(self, prompt, only_completed=True, return_sorted=False, **kwargs):
-        response = self.basic_request(prompt, **kwargs)
-        completions = [choice.message.content for choice in response.choices]
-        return completions 
-
-    def inspect_history(self, n: int = 1):
-        if len(self.history) < n:
-            return self.history
-        return self.history[-n:]
+logger = logging.getLogger("nano-graphrag")
+logger.setLevel(logging.DEBUG)
 
 
 async def deepseepk_model_if_cache(
@@ -88,64 +50,12 @@ async def deepseepk_model_if_cache(
     return response.choices[0].message.content
 
 
-class EntityTypeExtractionSignature(dspy.Signature):
-    input_text = dspy.InputField(desc="The text to extract entity types from")
-    entity_types = dspy.OutputField(desc="List of entity types present in the text")
-
-
-class EntityExtractionSignature(dspy.Signature):
-    input_text = dspy.InputField(desc="The text to extract entities and relationships from")
-    entities = dspy.OutputField(desc="List of extracted entities with their types and descriptions")
-    relationships = dspy.OutputField(desc="List of relationships between entities, including descriptions and importance scores")
-    reasoning = dspy.OutputField(desc="Step-by-step reasoning for entity and relationship extraction")
-
-
-class EntityExtractor(dspy.Module):
-    def __init__(self):
-        super().__init__()
-        self.type_extractor = dspy.ChainOfThought(EntityTypeExtractionSignature)
-        self.cot = dspy.ChainOfThought(EntityExtractionSignature)
-
-    def forward(self, input_text):
-        type_result = self.type_extractor(input_text=input_text)
-        entity_types = type_result.entity_types
-        prompt_template = PROMPTS["entity_extraction"]
-        formatted_prompt = prompt_template.format(
-            input_text=input_text,
-            entity_types=entity_types,
-            tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-            record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-            completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"]
-        )
-        return self.cot(input_text=formatted_prompt)
-
-
-# def extract_entities_dspy(text):
-#     dspy_extractor = EntityExtractor()
-#     dspy_result = dspy_extractor(input_text=text)
-    
-#     print("DSPY Result:")
-#     print("\nReasoning:")
-#     print(dspy_result.reasoning)
-#     print("\nEntities:")
-#     entities = dspy_result.entities.split(PROMPTS["DEFAULT_RECORD_DELIMITER"])
-#     for entity in entities:
-#         if entity.strip():
-#             print(entity.strip())
-    
-#     print("\nRelationships:")
-#     relationships = dspy_result.relationships.split(PROMPTS["DEFAULT_RECORD_DELIMITER"])
-#     for relationship in relationships:
-#         if relationship.strip():
-#             print(relationship.strip())
-
-
-async def nano_entity_extraction(text):
+async def nano_entity_extraction(text: str, system_prompt: str = None):
     graph_storage = NetworkXStorage(namespace="test", global_config={
         "working_dir": WORKING_DIR,
         "entity_summary_to_max_tokens": 500,
-        "cheap_model_func": deepseepk_model_if_cache,
-        "best_model_func": deepseepk_model_if_cache,
+        "cheap_model_func": lambda *args, **kwargs: deepseepk_model_if_cache(*args, system_prompt=system_prompt, **kwargs),
+        "best_model_func": lambda *args, **kwargs: deepseepk_model_if_cache(*args, system_prompt=system_prompt, **kwargs),
         "cheap_model_max_token_size": 4096,
         "best_model_max_token_size": 4096,
         "tiktoken_model_name": "gpt-4o",
@@ -176,11 +86,25 @@ async def nano_entity_extraction(text):
 
 
 if __name__ == "__main__":
-    lm = DeepSeek(model="deepseek-chat", api_key=os.environ["DEEPSEEK_API_KEY"])
+    system_prompt = """
+        You are a world-class AI system, capable of complex reasoning and reflection. 
+        Reason through the query, and then provide your final response. 
+        If you detect that you made a mistake in your reasoning at any point, correct yourself.
+        Think carefully.
+    """
+    lm = dspy.OpenAI(
+        model="deepseek-chat", 
+        model_type="chat", 
+        api_key=os.environ["DEEPSEEK_API_KEY"], 
+        base_url=os.environ["DEEPSEEK_BASE_URL"], 
+        system_prompt=system_prompt, 
+        temperature=0.3,
+        top_p=1,
+        max_tokens=4096
+    )
     dspy.settings.configure(lm=lm)
     
     with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
         text = f.read()
 
-    asyncio.run(nano_entity_extraction(text))
-    # extract_entities_dspy(text)
+    asyncio.run(nano_entity_extraction(text, system_prompt))

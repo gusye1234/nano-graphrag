@@ -9,7 +9,7 @@ from typing import Type, cast
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
 from ._op import (
     chunking_by_token_size,
-    extract_entities_dspy,
+    extract_entities,
     generate_community_report,
     local_query,
     global_query,
@@ -276,7 +276,7 @@ class GraphRAG:
 
             # ---------- extract/summary entity and upsert to graph
             logger.info("[Entity Extraction]...")
-            maybe_new_kg = await extract_entities_dspy(
+            maybe_new_kg = await extract_entities(
                 inserting_chunks,
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,

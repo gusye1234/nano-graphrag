@@ -2,12 +2,14 @@ import os
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import logging
-
+import numpy as np
+import dspy
+from sentence_transformers import SentenceTransformer
 from nano_graphrag import GraphRAG, QueryParam
 from nano_graphrag._llm import gpt_4o_mini_complete
 from nano_graphrag._storage import HNSWVectorStorage
 from nano_graphrag.base import BaseKVStorage
-from nano_graphrag._utils import compute_args_hash
+from nano_graphrag._utils import compute_args_hash, wrap_embedding_func_with_attrs
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nano-graphrag").setLevel(logging.DEBUG)
@@ -15,6 +17,19 @@ logging.getLogger("nano-graphrag").setLevel(logging.DEBUG)
 WORKING_DIR = "./nano_graphrag_cache_using_hnsw_as_vectorDB"
 
 load_dotenv()
+
+
+EMBED_MODEL = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2", cache_folder=WORKING_DIR, device="cpu"
+)
+
+
+@wrap_embedding_func_with_attrs(
+    embedding_dim=EMBED_MODEL.get_sentence_embedding_dimension(),
+    max_token_size=EMBED_MODEL.max_seq_length,
+)
+async def local_embedding(texts: list[str]) -> np.ndarray:
+    return EMBED_MODEL.encode(texts, normalize_embeddings=True)
 
 
 async def deepseepk_model_if_cache(
@@ -61,6 +76,7 @@ def insert():
     from time import time
 
     with open("./tests/mock_data.txt", encoding="utf-8-sig") as f:
+    # with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
         FAKE_TEXT = f.read()
 
     remove_if_exist(f"{WORKING_DIR}/vdb_entities.json")
@@ -77,6 +93,7 @@ def insert():
         cheap_model_max_async=10,
         best_model_func=deepseepk_model_if_cache,
         cheap_model_func=deepseepk_model_if_cache,
+        embedding_func=local_embedding,
     )
     start = time()
     rag.insert(FAKE_TEXT)
@@ -95,6 +112,7 @@ def query():
         cheap_model_max_async=4,
         best_model_func=gpt_4o_mini_complete,
         cheap_model_func=gpt_4o_mini_complete,
+        embedding_func=local_embedding,
         
     )
     print(
@@ -110,5 +128,22 @@ def query():
 
 
 if __name__ == "__main__":
+    system_prompt = """
+        You are a world-class AI system, capable of complex reasoning and reflection. 
+        Reason through the query, and then provide your final response. 
+        If you detect that you made a mistake in your reasoning at any point, correct yourself.
+        Think carefully.
+    """
+    lm = dspy.OpenAI(
+        model="deepseek-chat", 
+        model_type="chat", 
+        api_key=os.environ["DEEPSEEK_API_KEY"], 
+        base_url=os.environ["DEEPSEEK_BASE_URL"], 
+        system_prompt=system_prompt, 
+        temperature=0.3,
+        top_p=1,
+        max_tokens=4096
+    )
+    dspy.settings.configure(lm=lm)
     insert()
     query()
