@@ -6,7 +6,7 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
+from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding, azure_gpt_4o_complete, azure_openai_embedding, azure_gpt_4o_mini_complete
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -118,6 +118,19 @@ class GraphRAG:
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
         logger.debug(f"GraphRAG init with param:\n\n  {_print_config}\n")
+
+        # Check if OPENAI_API_KEY environment variable exists
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+
+        if not openai_api_key:
+            # If there's no OpenAI API key, use Azure OpenAI
+            self.best_model_func = azure_gpt_4o_complete
+            self.cheap_model_func = azure_gpt_4o_mini_complete
+            self.embedding_func = azure_openai_embedding
+            logger.info("Using Azure OpenAI as the default LLM and embedding provider.")
+        else:
+            # If OpenAI API key is present, keep the original configuration
+            logger.info("Using OpenAI as the default LLM and embedding provider.")
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
