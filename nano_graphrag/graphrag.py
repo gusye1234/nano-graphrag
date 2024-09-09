@@ -6,7 +6,14 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding, azure_gpt_4o_complete, azure_openai_embedding, azure_gpt_4o_mini_complete
+from ._llm import (
+    gpt_4o_complete,
+    gpt_4o_mini_complete,
+    openai_embedding,
+    azure_gpt_4o_complete,
+    azure_openai_embedding,
+    azure_gpt_4o_mini_complete,
+)
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -97,6 +104,7 @@ class GraphRAG:
     query_better_than_threshold: float = 0.2
 
     # LLM
+    using_azure_openai: bool = False
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
     best_model_max_async: int = 16
@@ -119,18 +127,17 @@ class GraphRAG:
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
         logger.debug(f"GraphRAG init with param:\n\n  {_print_config}\n")
 
-        # Check if OPENAI_API_KEY environment variable exists
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-
-        if not openai_api_key:
+        if self.using_azure_openai:
             # If there's no OpenAI API key, use Azure OpenAI
-            self.best_model_func = azure_gpt_4o_complete
-            self.cheap_model_func = azure_gpt_4o_mini_complete
-            self.embedding_func = azure_openai_embedding
-            logger.info("Using Azure OpenAI as the default LLM and embedding provider.")
-        else:
-            # If OpenAI API key is present, keep the original configuration
-            logger.info("Using OpenAI as the default LLM and embedding provider.")
+            if self.best_model_func == gpt_4o_complete:
+                self.best_model_func = azure_gpt_4o_complete
+            if self.cheap_model_func == gpt_4o_mini_complete:
+                self.cheap_model_func = azure_gpt_4o_mini_complete
+            if self.embedding_func == openai_embedding:
+                self.embedding_func = azure_openai_embedding
+            logger.info(
+                "Switched the default openai funcs to Azure OpenAI if you didn't set any of it"
+            )
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")

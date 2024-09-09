@@ -59,7 +59,12 @@ pip install -e .
 
 > [!TIP]
 >
->  **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+> **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+
+> [!TIP]
+> If you're using Azure OpenAI API, refer to the [.env.example](./.env.example.azure) to set your azure openai. Then pass `GraphRAG(...,using_azure_openai=True,...)` to enable.
+
+> [!TIP]
 >
 > If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM or Embedding Model, check [Advances](#Advances).
 
