@@ -141,22 +141,12 @@ async def azure_gpt_4o_mini_complete(
         **kwargs,
     )
 
-async def azure_gpt_35_turbo_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await azure_openai_complete_if_cache(
-        "gpt-35-turbo",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
 
 @wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def azure_openai_embedding(texts: list[str], **kwargs) -> np.ndarray:
     azure_openai_client = AsyncAzureOpenAI(
