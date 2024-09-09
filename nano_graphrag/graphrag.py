@@ -6,7 +6,7 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding, azure_gpt_4o_complete, azure_gpt_35_turbo_complete, azure_openai_embedding
+from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding, azure_gpt_4o_complete, azure_gpt_35_turbo_complete, azure_openai_embedding, azure_gpt_4o_mini_complete
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -124,7 +124,7 @@ class GraphRAG:
         if not openai_api_key:
             # If there's no OpenAI API key, use Azure OpenAI
             self.best_model_func = azure_gpt_4o_complete
-            self.cheap_model_func = azure_gpt_4o_complete
+            self.cheap_model_func = azure_gpt_4o_mini_complete
             self.embedding_func = azure_openai_embedding
             logger.info("Using Azure OpenAI as the default LLM and embedding provider.")
         else:

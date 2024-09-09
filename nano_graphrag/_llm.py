@@ -128,6 +128,16 @@ async def azure_gpt_4o_complete(
         history_messages=history_messages,
         **kwargs,
     )
+async def azure_gpt_4o_mini_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    return await azure_openai_complete_if_cache(
+        "gpt-4o-mini",
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
 
 async def azure_gpt_35_turbo_complete(
     prompt, system_prompt=None, history_messages=[], **kwargs
@@ -140,7 +150,7 @@ async def azure_gpt_35_turbo_complete(
         **kwargs,
     )
 
-@wrap_embedding_func_with_attrs(embedding_dim=3072, max_token_size=8192)
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -154,6 +164,6 @@ async def azure_openai_embedding(texts: list[str], **kwargs) -> np.ndarray:
     )
     async with azure_openai_client as client:
         response = await client.embeddings.create(
-            model="text-embedding-3-large", input=texts, **kwargs
+            model="text-embedding-3-small", input=texts, **kwargs
         )
     return np.array([dp.embedding for dp in response.data])
