@@ -1,5 +1,5 @@
 import numpy as np
-from openai import AsyncOpenAI,AsyncAzureOpenAI, APIConnectionError, RateLimitError, Timeout
+from openai import AsyncOpenAI,AsyncAzureOpenAI, APIConnectionError, RateLimitError
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -15,7 +15,7 @@ from .base import BaseKVStorage
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def openai_complete_if_cache(
     model, prompt, system_prompt=None, history_messages=[], **kwargs
@@ -87,7 +87,7 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def azure_openai_complete_if_cache(
     deployment_name, prompt, system_prompt=None, history_messages=[], **kwargs
