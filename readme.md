@@ -329,6 +329,7 @@ See [ROADMAP.md](./docs/ROADMAP.md)
 
 - [benchmark for English](./docs/benchmark-en.md)
 - [benchmark for Chinese](./docs/benchmark-zh.md)
+- [An evaluation](./examples/benchmarks/eval_naive_graphrag_on_multi_hop.ipynb) notebook on a [multi-hop RAG task](https://github.com/yixuantt/MultiHop-RAG)
 
 
 
