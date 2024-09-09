@@ -94,6 +94,7 @@ class GraphRAG:
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
+    query_better_than_threshold: float = 0.2
 
     # LLM
     best_model_func: callable = gpt_4o_complete
@@ -182,10 +183,6 @@ class GraphRAG:
     def query(self, query: str, param: QueryParam = QueryParam()):
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
-
-    def eval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        loop = always_get_an_event_loop()
-        return loop.run_until_complete(self.aeval(querys, contexts, answers))
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:
@@ -300,9 +297,6 @@ class GraphRAG:
             await self.text_chunks.upsert(inserting_chunks)
         finally:
             await self._insert_done()
-
-    async def aeval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        pass
 
     async def _insert_done(self):
         tasks = []

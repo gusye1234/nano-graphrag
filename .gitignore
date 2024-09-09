@@ -5,6 +5,7 @@ run_test.py
 run_test_zh.py
 nano_graphrag_cache*/
 *.txt
+examples/benchmarks/fixtures/
 tests/original_workflow.txt
 ### Python ###
 # Byte-compiled / optimized / DLL files
