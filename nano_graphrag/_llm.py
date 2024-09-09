@@ -1,5 +1,7 @@
 import numpy as np
+
 from openai import AsyncOpenAI,AsyncAzureOpenAI, APIConnectionError, RateLimitError
+
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -72,7 +74,7 @@ async def gpt_4o_mini_complete(
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((RateLimitError, APIConnectionError, Timeout)),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def openai_embedding(texts: list[str]) -> np.ndarray:
     openai_async_client = AsyncOpenAI()

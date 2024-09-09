@@ -1,7 +1,6 @@
 ## Next Version TODO
 
-- [ ] Add `eval` method for `GraphRAG`, add at least one benchmark dataset
-- [x] Add naive RAG pipeline
+- [ ] Add neo4j for better visualization
 
 ## Interesting directions
 
