@@ -1,6 +1,6 @@
 import numpy as np
 
-from openai import AsyncOpenAI,AsyncAzureOpenAI, APIConnectionError, RateLimitError
+from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
 
 from tenacity import (
     retry,
@@ -84,8 +84,6 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
     return np.array([dp.embedding for dp in response.data])
 
 
-
-
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -94,9 +92,7 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 async def azure_openai_complete_if_cache(
     deployment_name, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    azure_openai_client = AsyncAzureOpenAI(
-        
-    )
+    azure_openai_client = AsyncAzureOpenAI()
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
@@ -109,16 +105,21 @@ async def azure_openai_complete_if_cache(
         if if_cache_return is not None:
             return if_cache_return["return"]
 
-    async with azure_openai_client as client:
-        response = await client.chat.completions.create(
-            model=deployment_name, messages=messages, **kwargs
-        )
+    response = await azure_openai_client.chat.completions.create(
+        model=deployment_name, messages=messages, **kwargs
+    )
 
     if hashing_kv is not None:
         await hashing_kv.upsert(
-            {args_hash: {"return": response.choices[0].message.content, "model": deployment_name}}
+            {
+                args_hash: {
+                    "return": response.choices[0].message.content,
+                    "model": deployment_name,
+                }
+            }
         )
     return response.choices[0].message.content
+
 
 async def azure_gpt_4o_complete(
     prompt, system_prompt=None, history_messages=[], **kwargs
@@ -130,6 +131,8 @@ async def azure_gpt_4o_complete(
         history_messages=history_messages,
         **kwargs,
     )
+
+
 async def azure_gpt_4o_mini_complete(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
@@ -148,14 +151,13 @@ async def azure_gpt_4o_mini_complete(
     wait=wait_exponential(multiplier=1, min=4, max=10),
     retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
-async def azure_openai_embedding(texts: list[str], **kwargs) -> np.ndarray:
+async def azure_openai_embedding(texts: list[str]) -> np.ndarray:
     azure_openai_client = AsyncAzureOpenAI(
         api_key=os.environ.get("API_KEY_EMB"),
         api_version=os.environ.get("API_VERSION_EMB"),
-        azure_endpoint=os.environ.get("AZURE_ENDPOINT_EMB")
+        azure_endpoint=os.environ.get("AZURE_ENDPOINT_EMB"),
     )
-    async with azure_openai_client as client:
-        response = await client.embeddings.create(
-            model="text-embedding-3-small", input=texts, **kwargs
-        )
+    response = await azure_openai_client.embeddings.create(
+        model="text-embedding-3-small", input=texts, encoding_format="float"
+    )
     return np.array([dp.embedding for dp in response.data])
