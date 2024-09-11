@@ -3,4 +3,3 @@ pytest
 future
 pytest-asyncio
 pytest-cov
-sentence-transformers
