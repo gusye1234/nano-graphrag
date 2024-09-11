@@ -7,6 +7,7 @@ from typing import Type, cast
 
 
 from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
+
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -102,6 +103,9 @@ class GraphRAG:
     cheap_model_func: callable = gpt_4o_mini_complete
     cheap_model_max_token_size: int = 32768
     cheap_model_max_async: int = 16
+
+    # entity extraction
+    entity_extraction_func: callable = extract_entities
 
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
@@ -276,7 +280,7 @@ class GraphRAG:
 
             # ---------- extract/summary entity and upsert to graph
             logger.info("[Entity Extraction]...")
-            maybe_new_kg = await extract_entities(
+            maybe_new_kg = await self.entity_extraction_func(
                 inserting_chunks,
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,

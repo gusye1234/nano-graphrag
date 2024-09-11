@@ -4,9 +4,12 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 import logging
 import asyncio
+import time
+import shutil
 from nano_graphrag.entity_extraction.extract import extract_entities_dspy
 from nano_graphrag._storage import NetworkXStorage, BaseKVStorage
 from nano_graphrag._utils import compute_mdhash_id, compute_args_hash
+from nano_graphrag._op import extract_entities
 
 WORKING_DIR = "./nano_graphrag_cache_dspy_entity"
 
@@ -17,7 +20,7 @@ logger.setLevel(logging.DEBUG)
 
 
 async def deepseepk_model_if_cache(
-    prompt, model: str = "deepseek-chat", system_prompt=None, history_messages=[], **kwargs
+    prompt: str, model: str = "deepseek-chat", system_prompt : str = None, history_messages: list = [], **kwargs
 ) -> str:
     openai_async_client = AsyncOpenAI(
         api_key=os.environ.get("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com"
@@ -50,25 +53,40 @@ async def deepseepk_model_if_cache(
     return response.choices[0].message.content
 
 
-async def nano_entity_extraction(text: str, system_prompt: str = None):
+async def benchmark_entity_extraction(text: str, system_prompt: str, use_dspy: bool = False):
+    working_dir = os.path.join(WORKING_DIR, f"use_dspy={use_dspy}")
+    if os.path.exists(working_dir):
+        shutil.rmtree(working_dir)
+    
+    start_time = time.time()
     graph_storage = NetworkXStorage(namespace="test", global_config={
-        "working_dir": WORKING_DIR,
+        "working_dir": working_dir,
         "entity_summary_to_max_tokens": 500,
         "cheap_model_func": lambda *args, **kwargs: deepseepk_model_if_cache(*args, system_prompt=system_prompt, **kwargs),
         "best_model_func": lambda *args, **kwargs: deepseepk_model_if_cache(*args, system_prompt=system_prompt, **kwargs),
         "cheap_model_max_token_size": 4096,
         "best_model_max_token_size": 4096,
         "tiktoken_model_name": "gpt-4o",
-        "hashing_kv": BaseKVStorage(namespace="test", global_config={"working_dir": WORKING_DIR}),
+        "hashing_kv": BaseKVStorage(namespace="test", global_config={"working_dir": working_dir}),
         "entity_extract_max_gleaning": 1,
         "entity_extract_max_tokens": 4096,
         "entity_extract_max_entities": 100,
         "entity_extract_max_relationships": 100,
     })
     chunks = {compute_mdhash_id(text, prefix="chunk-"): {"content": text}}
-    graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config)
+    
+    if use_dspy:
+        graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config)
+    else:
+        graph_storage = await extract_entities(chunks, graph_storage, None, graph_storage.global_config)
+    
+    end_time = time.time()
+    execution_time = end_time - start_time
+    
+    return graph_storage, execution_time
 
-    print("Current Implementation Result:")
+
+def print_extraction_results(graph_storage: NetworkXStorage):
     print("\nEntities:")
     entities = []
     for node, data in graph_storage._graph.nodes(data=True):
@@ -85,11 +103,35 @@ async def nano_entity_extraction(text: str, system_prompt: str = None):
     print("\n".join(relationships))
 
 
+async def run_benchmark(text: str, system_prompt: str):
+    print("\nRunning benchmark with DSPy-AI:")
+    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt, use_dspy=True)
+    print(f"Execution time with DSPy-AI: {time_with_dspy:.2f} seconds")
+    print_extraction_results(graph_storage_with_dspy)
+
+    print("Running benchmark without DSPy-AI:")
+    graph_storage_without_dspy, time_without_dspy = await benchmark_entity_extraction(text, system_prompt, use_dspy=False)
+    print(f"Execution time without DSPy-AI: {time_without_dspy:.2f} seconds")
+    print_extraction_results(graph_storage_without_dspy)
+
+    print("\nComparison:")
+    print(f"Time difference: {abs(time_with_dspy - time_without_dspy):.2f} seconds")
+    print(f"DSPy-AI is {'faster' if time_with_dspy < time_without_dspy else 'slower'}")
+
+    entities_without_dspy = len(graph_storage_without_dspy._graph.nodes())
+    entities_with_dspy = len(graph_storage_with_dspy._graph.nodes())
+    relationships_without_dspy = len(graph_storage_without_dspy._graph.edges())
+    relationships_with_dspy = len(graph_storage_with_dspy._graph.edges())
+
+    print(f"Entities extracted: {entities_without_dspy} (without DSPy-AI) vs {entities_with_dspy} (with DSPy-AI)")
+    print(f"Relationships extracted: {relationships_without_dspy} (without DSPy-AI) vs {relationships_with_dspy} (with DSPy-AI)")
+
+
 if __name__ == "__main__":
     system_prompt = """
-        You are a world-class AI system, capable of complex reasoning and reflection. 
+        You are a world-class AI system, capable of complex rationale and reflection. 
         Reason through the query, and then provide your final response. 
-        If you detect that you made a mistake in your reasoning at any point, correct yourself.
+        If you detect that you made a mistake in your rationale at any point, correct yourself.
         Think carefully.
     """
     lm = dspy.OpenAI(
@@ -99,7 +141,7 @@ if __name__ == "__main__":
         base_url=os.environ["DEEPSEEK_BASE_URL"], 
         system_prompt=system_prompt, 
         temperature=0.3,
-        top_p=1,
+        top_p=1.0,
         max_tokens=4096
     )
     dspy.settings.configure(lm=lm)
@@ -107,4 +149,4 @@ if __name__ == "__main__":
     with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
         text = f.read()
 
-    asyncio.run(nano_entity_extraction(text, system_prompt))
+    asyncio.run(run_benchmark(text, system_prompt))

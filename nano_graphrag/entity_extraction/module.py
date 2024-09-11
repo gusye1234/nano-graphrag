@@ -1,73 +1,36 @@
-import json
-import re
 import dspy
-from nano_graphrag.prompt import PROMPTS
-from nano_graphrag._utils import clean_str
+from nano_graphrag._utils import logger
 from nano_graphrag.entity_extraction.signature import (
-    EntityTypeExtraction, 
-    EntityExtraction,
-    RelationshipExtraction, 
+    EntityTypes,
+    Entities,
+    Relationships,
+    CombinedExtraction,
+    CombinedSelfReflection
 )
 
 
 class EntityRelationshipExtractor(dspy.Module):
     def __init__(self):
         super().__init__()
-        self.type_extractor = dspy.ChainOfThought(EntityTypeExtraction)
-        self.entity_extractor = dspy.ChainOfThought(EntityExtraction)
-        self.relationship_extractor = dspy.ChainOfThought(RelationshipExtraction)
-        self.prompt_template = PROMPTS["entity_extraction"]
-        self.context_base = dict(
-            tuple_delimiter=PROMPTS["DEFAULT_TUPLE_DELIMITER"],
-            record_delimiter=PROMPTS["DEFAULT_RECORD_DELIMITER"],
-            completion_delimiter=PROMPTS["DEFAULT_COMPLETION_DELIMITER"],
-        )
+        self.entity_types = EntityTypes()
+        self.extractor = dspy.TypedPredictor(CombinedExtraction)
+        self.self_reflection = dspy.TypedPredictor(CombinedSelfReflection)
 
-    def forward(self, input_text: str, chunk_key: str) -> tuple[list[dict], list[dict]]:
-        type_result = self.type_extractor(input_text=input_text)
-        formatted_prompt = self.prompt_template.format(
+    def forward(self, input_text: str) -> dspy.Prediction:
+        extraction_result = self.extractor(input_text=input_text, entity_types=self.entity_types)
+        reflection_result = self.self_reflection(
             input_text=input_text,
-            entity_types=type_result.entity_types,
-            **self.context_base
+            entity_types=self.entity_types,
+            entities=extraction_result.entities,
+            relationships=extraction_result.relationships
         )
-        entity_result = self.entity_extractor(input_text=formatted_prompt, entity_types=type_result.entity_types)
-        relationship_result = self.relationship_extractor(input_text=formatted_prompt, entities=entity_result.entities)
-        parsed_entities = self.handle_single_entity_extraction(entity_result.entities, chunk_key)
-        parsed_relationships = self.handle_single_relationship_extraction(relationship_result.relationships, chunk_key)
-        return parsed_entities, parsed_relationships
-
-    def handle_single_entity_extraction(self, entities: str, chunk_key: str) -> list[dict]:
-        entities = re.sub(r'^\d+\.\s*', '', entities, flags=re.MULTILINE)
-        entities = entities.replace(PROMPTS["DEFAULT_COMPLETION_DELIMITER"], '').strip()
-        entity_strings = re.findall(r'\{[^}]+\}', entities)
-        extracted_entities = []
-
-        for entity_str in entity_strings:   
-            entity = json.loads(entity_str)
-            extracted_entities.append({
-                "source_id": chunk_key,
-                "entity_name": clean_str(entity["name"].upper()),
-                "entity_type": clean_str(entity["type"].upper()),
-                "description": clean_str(entity["description"]),
-                "importance_score": float(entity["importance_score"]),
-            })
-
-        return extracted_entities
-
-    def handle_single_relationship_extraction(self, relationships: str, chunk_key: str) -> list[dict]:
-        relationships = re.sub(r'^\d+\.\s*', '', relationships, flags=re.MULTILINE)
-        relationships = relationships.replace(PROMPTS["DEFAULT_COMPLETION_DELIMITER"], '').strip()
-        relationship_strings = re.findall(r'\{[^}]+\}', relationships)
-        extracted_relationships = []
-        
-        for relationship_str in relationship_strings:
-            relationship = json.loads(relationship_str)
-            extracted_relationships.append({
-                "source_id": chunk_key,
-                "src_id": clean_str(relationship["source"].upper()),
-                "tgt_id": clean_str(relationship["target"].upper()),
-                "description": clean_str(relationship["description"]),
-                "weight": float(relationship["importance_score"]),
-            })
-
-        return extracted_relationships
+        entities = extraction_result.entities
+        missing_entities = reflection_result.missing_entities
+        relationships = extraction_result.relationships
+        missing_relationships = reflection_result.missing_relationships
+        parsed_entities = Entities(context=entities.context + missing_entities.context)
+        parsed_relationships = Relationships(context=relationships.context + missing_relationships.context)
+        logger.debug(f"Entities: {len(entities.context)} | Missed Entities: {len(missing_entities.context)} | Total Entities: {len(parsed_entities.context)}")
+        logger.debug(f"Relationships: {len(relationships.context)} | Missed Relationships: {len(missing_relationships.context)} | Total Relationships: {len(parsed_relationships.context)}")
+        return dspy.Prediction(entities=parsed_entities, relationships=parsed_relationships)
+    

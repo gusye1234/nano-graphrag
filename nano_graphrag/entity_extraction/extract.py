@@ -1,6 +1,5 @@
 import asyncio
 from collections import defaultdict
-
 from nano_graphrag._storage import BaseGraphStorage
 from nano_graphrag.base import (
     BaseGraphStorage,
@@ -10,6 +9,7 @@ from nano_graphrag.base import (
 from nano_graphrag.prompt import PROMPTS
 from nano_graphrag._utils import logger, compute_mdhash_id
 from nano_graphrag.entity_extraction.module import EntityRelationshipExtractor
+from nano_graphrag.entity_extraction.optimize import load_compiled_model
 from nano_graphrag._op import _merge_edges_then_upsert, _merge_nodes_then_upsert
 
 
@@ -20,6 +20,13 @@ async def extract_entities_dspy(
     global_config: dict,
 ) -> BaseGraphStorage | None:
     entity_extractor = EntityRelationshipExtractor()
+    if global_config.get("compile_dspy_entity_relationship", False):
+        entity_extractor = load_compiled_model(
+            model=entity_extractor,
+            dataset_path=global_config["entity_relationship_dataset_path"],
+            module_path=global_config["entity_relationship_module_path"]  
+        )
+    
     ordered_chunks = list(chunks.items())
     already_processed = 0
     already_entities = 0
@@ -30,19 +37,23 @@ async def extract_entities_dspy(
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
-        entities, relationships = await asyncio.to_thread(
-            entity_extractor, input_text=content, chunk_key=chunk_key
+        prediction = await asyncio.to_thread(
+            entity_extractor, input_text=content
         )
 
         maybe_nodes = defaultdict(list)
         maybe_edges = defaultdict(list)
-
-        for entity in entities:
-            maybe_nodes[entity["entity_name"]].append(entity)
+  
+        for entity in prediction.entities.context:
+            entity_dict = entity.dict()
+            entity_dict["source_id"] = chunk_key
+            maybe_nodes[entity.entity_name].append(entity_dict)
             already_entities += 1
 
-        for relationship in relationships:
-            maybe_edges[(relationship["src_id"], relationship["tgt_id"])].append(relationship)
+        for relationship in prediction.relationships.context:
+            relationship_dict = relationship.dict()
+            relationship_dict["source_id"] = chunk_key
+            maybe_edges[(relationship.src_id, relationship.tgt_id)].append(relationship_dict)
             already_relations += 1
         
         already_processed += 1
