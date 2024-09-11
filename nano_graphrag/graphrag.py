@@ -6,8 +6,14 @@ from functools import partial
 from typing import Type, cast
 
 
-from ._llm import gpt_4o_complete, gpt_4o_mini_complete, openai_embedding
-
+from ._llm import (
+    gpt_4o_complete,
+    gpt_4o_mini_complete,
+    openai_embedding,
+    azure_gpt_4o_complete,
+    azure_openai_embedding,
+    azure_gpt_4o_mini_complete,
+)
 from ._op import (
     chunking_by_token_size,
     extract_entities,
@@ -95,8 +101,10 @@ class GraphRAG:
     embedding_func: EmbeddingFunc = field(default_factory=lambda: openai_embedding)
     embedding_batch_num: int = 32
     embedding_func_max_async: int = 16
+    query_better_than_threshold: float = 0.2
 
     # LLM
+    using_azure_openai: bool = False
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
     best_model_max_async: int = 16
@@ -121,6 +129,18 @@ class GraphRAG:
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
         logger.debug(f"GraphRAG init with param:\n\n  {_print_config}\n")
+
+        if self.using_azure_openai:
+            # If there's no OpenAI API key, use Azure OpenAI
+            if self.best_model_func == gpt_4o_complete:
+                self.best_model_func = azure_gpt_4o_complete
+            if self.cheap_model_func == gpt_4o_mini_complete:
+                self.cheap_model_func = azure_gpt_4o_mini_complete
+            if self.embedding_func == openai_embedding:
+                self.embedding_func = azure_openai_embedding
+            logger.info(
+                "Switched the default openai funcs to Azure OpenAI if you didn't set any of it"
+            )
 
         if not os.path.exists(self.working_dir):
             logger.info(f"Creating working directory {self.working_dir}")
@@ -186,10 +206,6 @@ class GraphRAG:
     def query(self, query: str, param: QueryParam = QueryParam()):
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.aquery(query, param))
-
-    def eval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        loop = always_get_an_event_loop()
-        return loop.run_until_complete(self.aeval(querys, contexts, answers))
 
     async def aquery(self, query: str, param: QueryParam = QueryParam()):
         if param.mode == "local" and not self.enable_local:
@@ -304,9 +320,6 @@ class GraphRAG:
             await self.text_chunks.upsert(inserting_chunks)
         finally:
             await self._insert_done()
-
-    async def aeval(self, querys: list[str], contexts: list[str], answers: list[str]):
-        pass
 
     async def _insert_done(self):
         tasks = []

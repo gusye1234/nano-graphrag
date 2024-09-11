@@ -59,7 +59,12 @@ pip install -e .
 
 > [!TIP]
 >
->  **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+> **Please set OpenAI API key in environment: `export OPENAI_API_KEY="sk-..."`.** 
+
+> [!TIP]
+> If you're using Azure OpenAI API, refer to the [.env.example](./.env.example.azure) to set your azure openai. Then pass `GraphRAG(...,using_azure_openai=True,...)` to enable.
+
+> [!TIP]
 >
 > If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM or Embedding Model, check [Advances](#Advances).
 
@@ -154,6 +159,8 @@ Below are the components you can use:
 | Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |             Built-in             |
 |                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        | Built-in, [examples](./examples) |
 |                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
+|                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |      [examples](./examples)      |
+| Visualization   |                           graphml                            |      [examples](./examples)      |
 
 - `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
@@ -312,21 +319,22 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 
 ## FQA
 
-Check [FQA](./FAQ.md).
+Check [FQA](./docs/FAQ.md).
 
 
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md)
+See [ROADMAP.md](./docs/ROADMAP.md)
 
 
 
 
 ## Benchmark
 
-- [benchmark for English](./benchmark-en.md)
-- [benchmark for Chinese](./benchmark-zh.md)
+- [benchmark for English](./docs/benchmark-en.md)
+- [benchmark for Chinese](./docs/benchmark-zh.md)
+- [An evaluation](./examples/benchmarks/eval_naive_graphrag_on_multi_hop.ipynb) notebook on a [multi-hop RAG task](https://github.com/yixuantt/MultiHop-RAG)
 
 
 
