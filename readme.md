@@ -35,8 +35,6 @@
 
 
 
-
-
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
 😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
@@ -102,6 +100,12 @@ print(graph_func.query("What are the top themes in this story?", param=QueryPara
 ```
 
 Next time you initialize a `GraphRAG` from the same `working_dir`, it will reload all the contexts automatically.
+
+#### Batch Insert
+
+```python
+graph_func.insert(["TEXT1", "TEXT2",...])
+```
 
 <details>
 <summary> Incremental Insert</summary>
