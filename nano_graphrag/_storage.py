@@ -55,9 +55,7 @@ class JsonKVStorage(BaseKVStorage):
         return set([s for s in data if s not in self._data])
 
     async def upsert(self, data: dict[str, dict]):
-        left_data = {k: v for k, v in data.items() if k not in self._data}
-        self._data.update(left_data)
-        return left_data
+        self._data.update(data)
 
     async def drop(self):
         self._data = {}
