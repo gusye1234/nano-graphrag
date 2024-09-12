@@ -7,4 +7,3 @@ hnswlib
 xxhash
 tenacity
 dspy-ai
-sentence-transformers
