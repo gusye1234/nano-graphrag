@@ -187,7 +187,8 @@ async def _merge_edges_then_upsert(
         already_description.append(already_edge["description"])
         already_order.append(already_edge.get("order", 1))
 
-    order = min([dp["order"] for dp in edges_data] + already_order)
+    # [numberchiffre]: `Relationship.order` is only returned from DSPy's predictions
+    order = min([dp.get("order", 1) for dp in edges_data] + already_order)
     weight = sum([dp["weight"] for dp in edges_data] + already_weights)
     description = GRAPH_FIELD_SEP.join(
         sorted(set([dp["description"] for dp in edges_data] + already_description))
