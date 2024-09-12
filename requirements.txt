@@ -6,3 +6,5 @@ nano-vectordb
 hnswlib
 xxhash
 tenacity
+dspy-ai
+sentence-transformers

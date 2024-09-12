@@ -14,7 +14,7 @@ from ._utils import (
     list_of_list_to_csv,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
-    truncate_list_by_token_size,
+    truncate_list_by_token_size
 )
 from .base import (
     BaseGraphStorage,
@@ -177,6 +177,7 @@ async def _merge_edges_then_upsert(
     already_weights = []
     already_source_ids = []
     already_description = []
+    already_order = []
     if await knwoledge_graph_inst.has_edge(src_id, tgt_id):
         already_edge = await knwoledge_graph_inst.get_edge(src_id, tgt_id)
         already_weights.append(already_edge["weight"])
@@ -184,7 +185,10 @@ async def _merge_edges_then_upsert(
             split_string_by_multi_markers(already_edge["source_id"], [GRAPH_FIELD_SEP])
         )
         already_description.append(already_edge["description"])
+        already_order.append(already_edge.get("order", 1))
 
+    # [numberchiffre]: `Relationship.order` is only returned from DSPy's predictions
+    order = min([dp.get("order", 1) for dp in edges_data] + already_order)
     weight = sum([dp["weight"] for dp in edges_data] + already_weights)
     description = GRAPH_FIELD_SEP.join(
         sorted(set([dp["description"] for dp in edges_data] + already_description))
@@ -212,6 +216,7 @@ async def _merge_edges_then_upsert(
             weight=weight,
             description=description,
             source_id=source_id,
+            order=order
         ),
     )
 

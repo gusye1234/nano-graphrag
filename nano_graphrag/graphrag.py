@@ -112,6 +112,9 @@ class GraphRAG:
     cheap_model_max_token_size: int = 32768
     cheap_model_max_async: int = 16
 
+    # entity extraction
+    entity_extraction_func: callable = extract_entities
+
     # storage
     key_string_value_json_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     vector_db_storage_cls: Type[BaseVectorStorage] = NanoVectorDBStorage
@@ -293,7 +296,7 @@ class GraphRAG:
 
             # ---------- extract/summary entity and upsert to graph
             logger.info("[Entity Extraction]...")
-            maybe_new_kg = await extract_entities(
+            maybe_new_kg = await self.entity_extraction_func(
                 inserting_chunks,
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,
