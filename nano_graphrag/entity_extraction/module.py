@@ -196,7 +196,7 @@ class EntityRelationshipExtractor(dspy.Module):
             relationship.src_id = clean_str(relationship.src_id.upper())
             relationship.tgt_id = clean_str(relationship.tgt_id.upper())
             relationship.description = clean_str(relationship.description)
-            relationship.importance_score = float(relationship.importance_score)
+            relationship.weight = float(relationship.weight)
             relationship.order = int(relationship.order)
 
         direct_relationships = sum(1 for r in all_relationships.context if r.order == 1)

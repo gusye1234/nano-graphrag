@@ -64,19 +64,27 @@ def test_entity_relationship_extractor():
         assert result.entities.context[1].entity_name == "IPHONE"
         assert result.entities.context[1].entity_type == "PRODUCT"
         assert result.entities.context[1].description == "A smartphone"
+        assert result.entities.context[1].importance_score == 1
 
         assert result.entities.context[2].entity_name == "TIM_COOK"
         assert result.entities.context[2].entity_type == "PERSON"
         assert result.entities.context[2].description == "CEO of Apple"
+        assert result.entities.context[2].importance_score == 0.8
 
         assert result.relationships.context[0].src_id == "APPLE"
         assert result.relationships.context[0].tgt_id == "IPHONE"
         assert result.relationships.context[0].description == "Apple manufactures iPhone"
+        assert result.relationships.context[0].weight == 1
+        assert result.relationships.context[0].order == 1
 
         assert result.relationships.context[1].src_id == "TIM_COOK"
         assert result.relationships.context[1].tgt_id == "APPLE"
         assert result.relationships.context[1].description == "Tim Cook is the CEO of Apple"
+        assert result.relationships.context[1].weight == 0.9
+        assert result.relationships.context[1].order == 1
 
         assert result.relationships.context[2].src_id == "APPLE"
         assert result.relationships.context[2].tgt_id == "IPHONE"
         assert result.relationships.context[2].description == "Apple announces new iPhone model"
+        assert result.relationships.context[2].weight == 1
+        assert result.relationships.context[2].order == 1

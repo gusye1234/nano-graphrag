@@ -1,3 +1,4 @@
+from typing import Union
 import pickle
 import asyncio
 from collections import defaultdict
@@ -51,7 +52,7 @@ async def extract_entities_dspy(
     knwoledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     global_config: dict,
-) -> BaseGraphStorage | None:
+) -> Union[BaseGraphStorage, None]:
     entity_extractor = EntityRelationshipExtractor()
 
     if global_config.get("use_compiled_dspy_entity_relationship", False):
