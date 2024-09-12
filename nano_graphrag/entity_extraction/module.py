@@ -1,6 +1,6 @@
 import dspy
 from pydantic import BaseModel, Field
-from nano_graphrag._utils import logger
+from nano_graphrag._utils import logger, clean_str
 
 
 class EntityTypes(BaseModel):
@@ -38,6 +38,7 @@ class Relationship(BaseModel):
     tgt_id: str = Field(..., description="Cleaned and uppercased target entity, strictly upper case")
     description: str = Field(..., description="Detailed and specific description of the relationship")
     weight: float = Field(ge=0.0, le=1.0, description="0 to 1, with 1 being most important")
+    order: int = Field(..., description="1 for direct relationships, 2 for second-order, 3 for third-order, etc")
 
 
 class Entities(BaseModel):
@@ -83,12 +84,17 @@ class CombinedExtraction(dspy.Signature):
                     "src_id": "SOURCE ENTITY",
                     "tgt_id": "TARGET ENTITY",
                     "description": "Detailed description of the relationship",
-                    "weight": 0.7
+                    "weight": 0.7,
+                    "order": 1  # 1 for direct relationships, 2 for second-order, 3 for third-order, etc.
                 },
                 ...
             ]
         }
         Make sure relationships are detailed and specific.
+        Include direct relationships (order 1) as well as higher-order relationships (order 2 and 3):
+        - Direct relationships: Immediate connections between entities.
+        - Second-order relationships: Indirect effects or connections that result from direct relationships.
+        - Third-order relationships: Further indirect effects that result from second-order relationships.
         IMPORTANT: Only include relationships between existing entities from the extracted entities. Do not introduce new entities here.
         The "src_id" and "tgt_id" fields must exactly match entity names from the extracted entities list.
         Ensure the output is strictly JSON formatted without any trailing text or comments.
@@ -137,20 +143,19 @@ class CombinedSelfReflection(dspy.Signature):
                     "src_id": "SOURCE ENTITY",
                     "tgt_id": "TARGET ENTITY",
                     "description": "Detailed description of the relationship",
-                    "weight": 0.7
+                    "weight": 0.7,
+                    "order": 1  # 1 for direct, 2 for second-order, 3 for third-order
                 },
                 ...
             ]
         }
         More specifically:
-        1. Direct relationships between entities that were not captured initially.
-        2. Implicit relationships that can be inferred from the context.
-        3. Secondary or tertiary relationships that provide important connections.
-        4. Hierarchical, causal, or temporal relationships that may have been overlooked.
-        5. Relationships involving the newly identified missing entities.
-        6. First-order consequences: The immediate and direct effects of an action or decision.
-        7. Second-order consequences: The indirect effects that result from the first-order consequences.
-        8. Third-order consequences: The further indirect effects that result from the second-order consequences.
+        1. Direct relationships (order 1) between entities that were not captured initially.
+        2. Second-order relationships (order 2): Indirect effects or connections resulting from direct relationships.
+        3. Third-order relationships (order 3): Further indirect effects resulting from second-order relationships.
+        4. Implicit relationships that can be inferred from the context.
+        5. Hierarchical, causal, or temporal relationships that may have been overlooked.
+        6. Relationships involving the newly identified missing entities.
         Only include relationships between entities in the combined entities list (extracted + missing).
         Ensure the output is strictly JSON formatted without any trailing text or comments.
         """
@@ -176,9 +181,27 @@ class EntityRelationshipExtractor(dspy.Module):
         missing_entities = reflection_result.missing_entities
         relationships = extraction_result.relationships
         missing_relationships = reflection_result.missing_relationships
-        parsed_entities = Entities(context=entities.context + missing_entities.context)
-        parsed_relationships = Relationships(context=relationships.context + missing_relationships.context)
-        logger.debug(f"Entities: {len(entities.context)} | Missed Entities: {len(missing_entities.context)} | Total Entities: {len(parsed_entities.context)}")
-        logger.debug(f"Relationships: {len(relationships.context)} | Missed Relationships: {len(missing_relationships.context)} | Total Relationships: {len(parsed_relationships.context)}")
-        return dspy.Prediction(entities=parsed_entities, relationships=parsed_relationships)
+        all_entities = Entities(context=entities.context + missing_entities.context)
+        all_relationships = Relationships(context=relationships.context + missing_relationships.context)
+        logger.debug(f"Entities: {len(entities.context)} | Missed Entities: {len(missing_entities.context)} | Total Entities: {len(all_entities.context)}")
+        logger.debug(f"Relationships: {len(relationships.context)} | Missed Relationships: {len(missing_relationships.context)} | Total Relationships: {len(all_relationships.context)}")
+        
+        for entity in all_entities.context:
+            entity.entity_name = clean_str(entity.entity_name.upper())
+            entity.entity_type = clean_str(entity.entity_type.upper())
+            entity.description = clean_str(entity.description)
+            entity.importance_score = float(entity.importance_score)
+
+        for relationship in all_relationships.context:
+            relationship.src_id = clean_str(relationship.src_id.upper())
+            relationship.tgt_id = clean_str(relationship.tgt_id.upper())
+            relationship.description = clean_str(relationship.description)
+            relationship.importance_score = float(relationship.importance_score)
+            relationship.order = int(relationship.order)
+
+        direct_relationships = sum(1 for r in all_relationships.context if r.order == 1)
+        second_order_relationships = sum(1 for r in all_relationships.context if r.order == 2)
+        third_order_relationships = sum(1 for r in all_relationships.context if r.order == 3)
+        logger.debug(f"Direct Relationships: {direct_relationships} | Second-order: {second_order_relationships} | Third-order: {third_order_relationships} | Total Relationships: {len(all_relationships.context)}")
+        return dspy.Prediction(entities=all_entities, relationships=all_relationships)
     
