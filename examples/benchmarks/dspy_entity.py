@@ -57,7 +57,7 @@ async def benchmark_entity_extraction(text: str, system_prompt: str, use_dspy: b
     working_dir = os.path.join(WORKING_DIR, f"use_dspy={use_dspy}")
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
-    
+
     start_time = time.time()
     graph_storage = NetworkXStorage(namespace="test", global_config={
         "working_dir": working_dir,
@@ -103,14 +103,33 @@ def print_extraction_results(graph_storage: NetworkXStorage):
     print("\n".join(relationships))
 
 
-async def run_benchmark(text: str, system_prompt: str):
+async def run_benchmark(text: str):
     print("\nRunning benchmark with DSPy-AI:")
-    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt, use_dspy=True)
+    system_prompt = """
+        You are a world-class AI system, capable of complex rationale and reflection. 
+        Reason through the query, and then provide your final response. 
+        If you detect that you made a mistake in your rationale at any point, correct yourself.
+        Think carefully.
+    """
+    system_prompt_dspy = f"{system_prompt} Time: {time.time()}."
+    lm = dspy.OpenAI(
+        model="deepseek-chat", 
+        model_type="chat", 
+        api_key=os.environ["DEEPSEEK_API_KEY"], 
+        base_url=os.environ["DEEPSEEK_BASE_URL"], 
+        system_prompt=system_prompt_dspy, 
+        temperature=1.0,
+        top_p=1,
+        max_tokens=4096
+    )
+    dspy.settings.configure(lm=lm)
+    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True)
     print(f"Execution time with DSPy-AI: {time_with_dspy:.2f} seconds")
     print_extraction_results(graph_storage_with_dspy)
 
     print("Running benchmark without DSPy-AI:")
-    graph_storage_without_dspy, time_without_dspy = await benchmark_entity_extraction(text, system_prompt, use_dspy=False)
+    system_prompt_no_dspy = f"{system_prompt} Time: {time.time()}."
+    graph_storage_without_dspy, time_without_dspy = await benchmark_entity_extraction(text, system_prompt_no_dspy, use_dspy=False)
     print(f"Execution time without DSPy-AI: {time_without_dspy:.2f} seconds")
     print_extraction_results(graph_storage_without_dspy)
 
@@ -128,25 +147,7 @@ async def run_benchmark(text: str, system_prompt: str):
 
 
 if __name__ == "__main__":
-    system_prompt = """
-        You are a world-class AI system, capable of complex rationale and reflection. 
-        Reason through the query, and then provide your final response. 
-        If you detect that you made a mistake in your rationale at any point, correct yourself.
-        Think carefully.
-    """
-    lm = dspy.OpenAI(
-        model="deepseek-chat", 
-        model_type="chat", 
-        api_key=os.environ["DEEPSEEK_API_KEY"], 
-        base_url=os.environ["DEEPSEEK_BASE_URL"], 
-        system_prompt=system_prompt, 
-        temperature=0.3,
-        top_p=1,
-        max_tokens=4096
-    )
-    dspy.settings.configure(lm=lm)
-    
     with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
         text = f.read()
 
-    asyncio.run(run_benchmark(text, system_prompt))
+    asyncio.run(run_benchmark(text=text))

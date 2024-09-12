@@ -142,7 +142,7 @@ if __name__ == "__main__":
         api_key=os.environ["DEEPSEEK_API_KEY"], 
         base_url=os.environ["DEEPSEEK_BASE_URL"], 
         system_prompt=system_prompt, 
-        temperature=0.3,
+        temperature=1.0,
         top_p=1,
         max_tokens=4096
     )

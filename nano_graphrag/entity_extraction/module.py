@@ -69,7 +69,13 @@ class CombinedExtraction(dspy.Signature):
             ]
         }
         Each entity name should be an actual atomic word from the input text. Avoid duplicates and generic terms.
-        Make sure descriptions are concise and specific, and all entity types are included from the text. 
+        Make sure descriptions are detailed and comprehensive, including:
+        1. The entity's role or significance in the context
+        2. Key attributes or characteristics
+        3. Relationships to other entities (if applicable)
+        4. Historical or cultural relevance (if applicable)
+        5. Any notable actions or events associated with the entity
+        All entity types from the text must be included. 
         Entities must have an importance score greater than 0.5.
         IMPORTANT: Only use entity types from the provided 'entity_types' list. Do not introduce new entity types.
         Ensure the output is strictly JSON formatted without any trailing text or comments.
@@ -90,7 +96,12 @@ class CombinedExtraction(dspy.Signature):
                 ...
             ]
         }
-        Make sure relationships are detailed and specific.
+        Make sure relationship descriptions are detailed and comprehensive, including:
+        1. The nature of the relationship (e.g., familial, professional, causal)
+        2. The impact or significance of the relationship on both entities
+        3. Any historical or contextual information relevant to the relationship
+        4. How the relationship evolved over time (if applicable)
+        5. Any notable events or actions that resulted from this relationship
         Include direct relationships (order 1) as well as higher-order relationships (order 2 and 3):
         - Direct relationships: Immediate connections between entities.
         - Second-order relationships: Indirect effects or connections that result from direct relationships.
