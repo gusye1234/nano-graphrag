@@ -43,6 +43,7 @@ async def openai_complete_if_cache(
         await hashing_kv.upsert(
             {args_hash: {"return": response.choices[0].message.content, "model": model}}
         )
+        await hashing_kv.index_done_callback()
     return response.choices[0].message.content
 
 
@@ -118,6 +119,7 @@ async def azure_openai_complete_if_cache(
                 }
             }
         )
+        await hashing_kv.index_done_callback()
     return response.choices[0].message.content
 
 
