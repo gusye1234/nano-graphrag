@@ -1,7 +1,6 @@
 import networkx as nx
 import json
 import webbrowser
-import os
 import http.server
 import socketserver
 import threading
@@ -12,9 +11,9 @@ def graphml_to_json(graphml_file):
     data = nx.node_link_data(G)
     return json.dumps(data)
 
+
 # 创建HTML文件
-def create_html(json_data, html_path):
-    json_data = json_data.replace('\\"', '')
+def create_html(html_path):
     html_content = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -94,8 +93,9 @@ def create_html(json_data, html_path):
     <svg></svg>
     <div class="tooltip"></div>
     <div class="legend"></div>
+    <script type="text/javascript" src="./graph_json.js"></script>
     <script>
-        const graphData = JSON.parse('{json_data}');
+        const graphData = graphJson;
         
         const svg = d3.select("svg"),
             width = window.innerWidth,
@@ -230,10 +230,17 @@ def create_html(json_data, html_path):
     </script>
 </body>
 </html>
-    '''.replace("{json_data}", json_data.replace("'", "\\'").replace("\n", ""))
-    
+    '''
+
     with open(html_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
+
+
+def create_json(json_data, json_path):
+    json_data = "var graphJson = " + json_data.replace('\\"', '').replace("'", "\\'").replace("\n", "")
+    with open(json_path, 'w', encoding='utf-8') as f:
+        f.write(json_data)
+
 
 # 启动简单的HTTP服务器
 def start_server():
@@ -245,8 +252,8 @@ def start_server():
 # 主函数
 def visualize_graphml(graphml_file, html_path):
     json_data = graphml_to_json(graphml_file)
-    create_html(json_data, html_path)
-    
+    create_json(json_data, 'graph_json.js')
+    create_html(html_path)
     # 在后台启动服务器
     server_thread = threading.Thread(target=start_server)
     server_thread.daemon = True
