@@ -65,6 +65,7 @@ class GraphRAG:
     enable_naive_rag: bool = False
 
     # text chunking
+    chunk_func: callable = chunking_by_token_size
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
@@ -269,7 +270,7 @@ class GraphRAG:
                         **dp,
                         "full_doc_id": doc_key,
                     }
-                    for dp in chunking_by_token_size(
+                    for dp in self.chunk_func(
                         doc["content"],
                         overlap_token_size=self.chunk_overlap_token_size,
                         max_token_size=self.chunk_token_size,

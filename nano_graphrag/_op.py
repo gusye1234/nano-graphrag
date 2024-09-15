@@ -48,6 +48,58 @@ def chunking_by_token_size(
         )
     return results
 
+def chunking_by_specific_separators(
+    content: str, overlap_token_size=128, max_token_size=1024, tiktoken_model="gpt-4o",
+):
+    from langchain_text_splitters  import RecursiveCharacterTextSplitter
+    
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=max_token_size,
+        chunk_overlap=overlap_token_size,
+        length_function=lambda x: len(encode_string_by_tiktoken(x)),
+        is_separator_regex=False,
+        # NOTE 这里我没有想好需不需要对外放开一个接口，我感觉修改这块的需求比较微小，可以按照类似PROMPTS自行修改源码的方式处理。
+        separators=[
+            # 段落分隔符
+            "\n\n",
+            "\r\n\r\n",
+            # 换行符
+            "\n",
+            "\r\n",
+            # 句子结束符
+            "。",  # 中文句号
+            "．",  # 全角点号
+            ".",  # 英文句号
+            "！",  # 中文感叹号
+            "!",  # 英文感叹号
+            "？",  # 中文问号
+            "?",  # 英文问号
+            # 空白字符
+            " ",  # 空格
+            "\t",  # 制表符
+            "\u3000",  # 全角空格
+            # 特殊字符
+            "\u200b",  # 零宽空格（用于某些亚洲语言）
+            # 最后的fallback
+            "",
+        ],
+    )
+    texts = text_splitter.split_text(content)
+    
+    results = []
+    for index, chunk_content in enumerate(texts):
+        
+        results.append(
+            {
+                # "tokens": None, # 这个地方我不知道怎么处理比较优雅，因为langchain并没有返回每个chunk长度，当然也可以在上面再encode一下算一次长度
+                "content": chunk_content.strip(),
+                "chunk_order_index": index,
+            }
+        )
+    return results
+
+
 
 async def _handle_entity_relation_summary(
     entity_or_relation_name: str,
