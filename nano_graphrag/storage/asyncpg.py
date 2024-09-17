@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import nest_asyncio
 nest_asyncio.apply()
 
+@dataclass
 class AsyncPGVectorStorage(BaseVectorStorage):
     table_name_generator: callable = None
     conn_fetcher: callable = None
