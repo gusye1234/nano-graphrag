@@ -343,6 +343,12 @@ See [ROADMAP.md](./docs/ROADMAP.md)
 
 
 
+## Contribute
+
+`nano-graphrag` is open to any kind of contribution. Read [this](./CONTRIBUTING.md) before you contribute.
+
+
+
 
 ## Benchmark
 
