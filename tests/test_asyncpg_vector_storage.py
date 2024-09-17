@@ -85,7 +85,6 @@ async def test_persistence(setup_teardown):
         global_config=asdict(rag),
         embedding_func=mock_embedding,
         meta_fields={"entity_name"},
-        dsn=dsn
     )
 
     results = await new_storage.query("Test query", top_k=1)
