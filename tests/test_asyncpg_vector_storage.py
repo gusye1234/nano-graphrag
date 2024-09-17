@@ -7,8 +7,9 @@ from nano_graphrag._utils import wrap_embedding_func_with_attrs
 from nano_graphrag.storage.asyncpg import AsyncpgVectorStorage
 import asyncpg
 from nano_graphrag.graphrag import always_get_an_event_loop
+import os
 WORKING_DIR = "nano_graphrag_cache_asyncpg_vector_storage_test"
-dsn='postgresql://test:test@127.0.0.1:12345/test'
+dsn=os.environ['POSTGRES_CONNECTION_STR']
 
 @pytest.fixture(scope="function")
 def setup_teardown():

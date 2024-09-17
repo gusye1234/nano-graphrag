@@ -47,11 +47,13 @@ jobs:
           username: ci
           password: sw0rdfish
           database: test
-          port: 34837
+          port: 12345
           postgres-version: "14"
           ssl: "on"
         id: postgres
       - name: Build and Test
+        env:
+          POSTGRES_CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
         run: |
           python -m pytest -o log_cli=true -o log_cli_level="INFO" --cov=nano_graphrag --cov-report=xml -v ./
       - name: Check codecov file
