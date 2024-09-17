@@ -41,12 +41,13 @@ jobs:
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        - uses: ikalnytskyi/action-setup-postgres@v6
+      - name: Setup postgres
+        uses: ikalnytskyi/action-setup-postgres@v6
         with:
-          username: test
-          password: test
+          username: ci
+          password: sw0rdfish
           database: test
-          port: 12345
+          port: 34837
           postgres-version: "14"
           ssl: "on"
         id: postgres
