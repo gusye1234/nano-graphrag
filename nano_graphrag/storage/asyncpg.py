@@ -7,7 +7,7 @@ from pgvector.asyncpg import register_vector
 from nano_graphrag.graphrag import always_get_an_event_loop
 import numpy as np
 import json
-
+import os
 import nest_asyncio
 nest_asyncio.apply()
 
@@ -16,8 +16,11 @@ class AsyncPGVectorStorage(BaseVectorStorage):
     conn_fetcher: callable = None
     cosine_better_than_threshold: float = 0.2
     dsn = None
-    def __init__(self, dsn: str = None, conn_fetcher: callable = None, table_name_generator: callable = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __post_init__(self):
+        params = self.global_config.get("vector_db_storage_cls_kwargs", {})
+        dsn = params.get("dsn", None)
+        conn_fetcher = params.get("conn_fetcher", None)
+        table_name_generator = params.get("table_name_generator", None)
         self.dsn = dsn
         self.conn_fetcher = conn_fetcher
         assert self.dsn != None or self.conn_fetcher != None, "Must provide either dsn or conn_fetcher"

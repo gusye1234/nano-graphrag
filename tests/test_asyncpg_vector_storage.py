@@ -35,13 +35,12 @@ async def mock_embedding(texts: list[str]) -> np.ndarray:
 
 @pytest.fixture
 def asyncpg_storage(setup_teardown):
-    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
+    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding, vector_db_storage_cls_kwargs={"dsn": dsn})
     return AsyncPGVectorStorage(
         namespace="test",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
         meta_fields={"entity_name"},
-        dsn=dsn
     )
 
 
@@ -66,13 +65,12 @@ async def test_upsert_and_query(asyncpg_storage):
 
 @pytest.mark.asyncio
 async def test_persistence(setup_teardown):
-    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
+    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding, vector_db_storage_cls_kwargs={"dsn": dsn})
     initial_storage = AsyncPGVectorStorage(
         namespace="test",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
         meta_fields={"entity_name"},
-        dsn=dsn
     )
 
     test_data = {
@@ -99,13 +97,12 @@ async def test_persistence(setup_teardown):
 
 @pytest.mark.asyncio
 async def test_persistence_large_dataset(setup_teardown):
-    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
+    rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding, vector_db_storage_cls_kwargs={"dsn": dsn})
     initial_storage = AsyncPGVectorStorage(
         namespace="test_large",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
         meta_fields={"entity_name"},
-        dsn=dsn
     )
 
     large_data = {
@@ -120,7 +117,6 @@ async def test_persistence_large_dataset(setup_teardown):
         global_config=asdict(rag),
         embedding_func=mock_embedding,
         meta_fields={"entity_name"},
-        dsn=dsn
     )
 
     results = await new_storage.query("Test query", top_k=500)

@@ -51,6 +51,10 @@ jobs:
           postgres-version: "14"
           ssl: "on"
         id: postgres
+      - name: Install pgvector
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install postgresql-14-pgvector
       - name: Build and Test
         env:
           POSTGRES_CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
