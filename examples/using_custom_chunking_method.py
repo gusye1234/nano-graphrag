@@ -17,29 +17,29 @@ def chunking_by_specific_separators(
         model_name=tiktoken_model,
         is_separator_regex=False,
         separators=[
-            # 段落分隔符
+            # Paragraph separators
             "\n\n",
             "\r\n\r\n",
-            # 换行符
+            # Line breaks
             "\n",
             "\r\n",
-            # 句子结束符
-            "。",  # 中文句号
-            "．",  # 全角点号
-            ".",  # 英文句号
-            "！",  # 中文感叹号
-            "!",  # 英文感叹号
-            "？",  # 中文问号
-            "?",  # 英文问号
-            # 空白字符
-            " ",  # 空格
-            "\t",  # 制表符
-            "\u3000",  # 全角空格
-            # 特殊字符
-            "\u200b",  # 零宽空格（用于某些亚洲语言）
-            # 最后的fallback
+            # Sentence ending punctuation
+            "。",  # Chinese period
+            "．",  # Full-width dot
+            ".",  # English period
+            "！",  # Chinese exclamation mark
+            "!",  # English exclamation mark
+            "？",  # Chinese question mark
+            "?",  # English question mark
+            # Whitespace characters
+            " ",  # Space
+            "\t",  # Tab
+            "\u3000",  # Full-width space
+            # Special characters
+            "\u200b",  # Zero-width space (used in some Asian languages)
+            # Final fallback
             "",
-        ],)
+        ])
     texts = text_splitter.split_text(content)
     
     results = []
