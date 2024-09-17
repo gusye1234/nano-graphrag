@@ -4,7 +4,7 @@ from dataclasses import asdict
 from nano_graphrag import GraphRAG
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
 
-from nano_graphrag.storage.asyncpg import AsyncpgVectorStorage
+from nano_graphrag.storage.asyncpg import AsyncPGVectorStorage
 import asyncpg
 from nano_graphrag.graphrag import always_get_an_event_loop
 import os
@@ -36,7 +36,7 @@ async def mock_embedding(texts: list[str]) -> np.ndarray:
 @pytest.fixture
 def asyncpg_storage(setup_teardown):
     rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
-    return AsyncpgVectorStorage(
+    return AsyncPGVectorStorage(
         namespace="test",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
@@ -67,7 +67,7 @@ async def test_upsert_and_query(asyncpg_storage):
 @pytest.mark.asyncio
 async def test_persistence(setup_teardown):
     rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
-    initial_storage = AsyncpgVectorStorage(
+    initial_storage = AsyncPGVectorStorage(
         namespace="test",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
@@ -82,7 +82,7 @@ async def test_persistence(setup_teardown):
     await initial_storage.upsert(test_data)
     await initial_storage.index_done_callback()
 
-    new_storage = AsyncpgVectorStorage(
+    new_storage = AsyncPGVectorStorage(
         namespace="test",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
@@ -100,7 +100,7 @@ async def test_persistence(setup_teardown):
 @pytest.mark.asyncio
 async def test_persistence_large_dataset(setup_teardown):
     rag = GraphRAG(working_dir=WORKING_DIR, embedding_func=mock_embedding)
-    initial_storage = AsyncpgVectorStorage(
+    initial_storage = AsyncPGVectorStorage(
         namespace="test_large",
         global_config=asdict(rag),
         embedding_func=mock_embedding,
@@ -115,7 +115,7 @@ async def test_persistence_large_dataset(setup_teardown):
     await initial_storage.upsert(large_data)
     await initial_storage.index_done_callback()
 
-    new_storage = AsyncpgVectorStorage(
+    new_storage = AsyncPGVectorStorage(
         namespace="test_large",
         global_config=asdict(rag),
         embedding_func=mock_embedding,

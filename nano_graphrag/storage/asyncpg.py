@@ -11,7 +11,7 @@ import json
 import nest_asyncio
 nest_asyncio.apply()
 
-class AsyncpgVectorStorage(BaseVectorStorage):
+class AsyncPGVectorStorage(BaseVectorStorage):
     table_name_generator: callable = None
     conn_fetcher: callable = None
     cosine_better_than_threshold: float = 0.2
@@ -34,15 +34,16 @@ class AsyncpgVectorStorage(BaseVectorStorage):
         loop = always_get_an_event_loop()
         loop.run_until_complete(self._secure_table())
     @asynccontextmanager
-    async def __get_conn(self):
+    async def __get_conn(self, vector_register=True):
         try:
             conn: asyncpg.Connection = await asyncpg.connect(self.dsn)
-            await register_vector(conn)
+            if vector_register:
+                await register_vector(conn)
             yield conn
         finally:
             await conn.close()
     async def _secure_table(self):
-        async with self.conn_fetcher() as conn:
+        async with self.conn_fetcher(vector_register=False) as conn:
             conn: asyncpg.Connection
             await conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
             result = await conn.fetch(
