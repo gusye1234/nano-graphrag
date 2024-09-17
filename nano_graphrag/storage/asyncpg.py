@@ -7,7 +7,8 @@ from pgvector.asyncpg import register_vector
 from nano_graphrag.graphrag import always_get_an_event_loop
 import numpy as np
 import json
-import os
+from dataclasses import dataclass
+
 import nest_asyncio
 nest_asyncio.apply()
 
