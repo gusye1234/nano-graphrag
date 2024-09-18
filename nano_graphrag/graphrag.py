@@ -20,6 +20,7 @@ from ._op import (
     chunking_by_token_size,
     extract_entities,
     generate_community_report,
+    get_chunks,
     local_query,
     global_query,
     naive_query,
@@ -265,21 +266,9 @@ class GraphRAG:
             logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
             # ---------- chunking
-            inserting_chunks = {}
             
-
-            
-            new_docs_list=list(new_docs.items())
-            docs=[new_doc[1]["content"] for new_doc in new_docs_list]
-            doc_keys=[new_doc[0] for new_doc in new_docs_list]
-            
-            
-            ENCODER = tiktoken.encoding_for_model("gpt-4o")
-            tokens=ENCODER.encode_batch(docs,num_threads=16)
-            chunks=self.chunk_func(tokens,overlap_token_size=self.chunk_overlap_token_size,
-                        max_token_size=self.chunk_token_size,doc_keys=doc_keys,tiktoken_model=ENCODER)
-            for chunk in chunks:
-                inserting_chunks.update({compute_mdhash_id(chunk["content"], prefix="chunk-"):chunk})
+            inserting_chunks = get_chunks(new_docs=new_docs,chunk_func=self.chunk_func,overlap_token_size=self.chunk_overlap_token_size,
+            max_token_size=self.chunk_token_size)
             
 
             _add_chunk_keys = await self.text_chunks.filter_keys(
