@@ -32,6 +32,9 @@ async def local_embedding(texts: list[str]) -> np.ndarray:
 async def ollama_model_if_cache(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
+    # remove kwargs that are not supported by ollama
+    kwargs.pop("max_tokens", None)
+
     ollama_client = ollama.AsyncClient()
     messages = []
     if system_prompt:
