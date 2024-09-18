@@ -6,14 +6,14 @@ import http.server
 import socketserver
 import threading
 
-# 读取GraphML文件并转换为JSON
+# load GraphML file and transfer to JSON
 def graphml_to_json(graphml_file):
     G = nx.read_graphml(graphml_file)
     data = nx.node_link_data(G)
     return json.dumps(data)
 
 
-# 创建HTML文件
+# create HTML file
 def create_html(html_path):
     html_content = '''
 <!DOCTYPE html>
@@ -243,14 +243,14 @@ def create_json(json_data, json_path):
         f.write(json_data)
 
 
-# 启动简单的HTTP服务器
+# start simple HTTP server
 def start_server(port):
     handler = http.server.SimpleHTTPRequestHandler
     with socketserver.TCPServer(("", port), handler) as httpd:
         print(f"Server started at http://localhost:{port}")
         httpd.serve_forever()
 
-# 主函数
+# main function
 def visualize_graphml(graphml_file, html_path, port=8000):
     json_data = graphml_to_json(graphml_file)
     html_dir = os.path.dirname(html_path)
@@ -259,24 +259,24 @@ def visualize_graphml(graphml_file, html_path, port=8000):
     json_path = os.path.join(html_dir, 'graph_json.js')
     create_json(json_data, json_path)
     create_html(html_path)
-    # 在后台启动服务器
+    # start server in background
     server_thread = threading.Thread(target=start_server(port))
     server_thread.daemon = True
     server_thread.start()
     
-    # 打开默认浏览器
+    # open default browser
     webbrowser.open(f'http://localhost:{port}/{html_path}')
     
     print("Visualization is ready. Press Ctrl+C to exit.")
     try:
-        # 保持主线程运行
+        # keep main thread running
         while True:
             pass
     except KeyboardInterrupt:
         print("Shutting down...")
 
-# 使用示例
+# usage
 if __name__ == "__main__":
-    graphml_file = r"nano_graphrag_cache_azure_openai_TEST\graph_chunk_entity_relation.graphml"  # 替换为您的GraphML文件路径
+    graphml_file = r"nano_graphrag_cache_azure_openai_TEST\graph_chunk_entity_relation.graphml"  # replace with your GraphML file path
     html_path = "graph_visualization.html"
     visualize_graphml(graphml_file, html_path, 11236)
