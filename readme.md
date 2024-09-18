@@ -19,14 +19,15 @@
     </a>
   </p>
   <p>
-  	<a href="https://discord.gg/nY6GDChP">
-      <img src="https://dcbadge.limes.pink/api/server/nY6GDChP?style=flat">
+  	<a href="https://discord.gg/sqCVzAhUY6">
+      <img src="https://dcbadge.limes.pink/api/server/sqCVzAhUY6?style=flat">
     </a>
     <a href="https://github.com/gusye1234/nano-graphrag/issues/8">
        <img src="https://img.shields.io/badge/群聊-wechat-green">
     </a>
   </p>
 </div>
+
 
 
 
