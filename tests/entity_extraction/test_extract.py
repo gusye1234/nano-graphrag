@@ -1,10 +1,6 @@
 import pytest
 import dspy
 from unittest.mock import Mock, patch, AsyncMock
-from nano_graphrag.entity_extraction.module import (
-    Entities,
-    Relationships,
-)
 from nano_graphrag.entity_extraction.extract import generate_dataset, extract_entities_dspy
 from nano_graphrag.base import TextChunkSchema, BaseGraphStorage, BaseVectorStorage
 
@@ -46,8 +42,8 @@ def mock_global_config():
 @pytest.mark.asyncio
 async def test_generate_dataset(mock_chunks, mock_entity_extractor, tmp_path):
     mock_prediction = Mock(
-        entities=Mock(context=[{"entity_name": "APPLE", "entity_type": "ORGANIZATION"}]),
-        relationships=Mock(context=[{"src_id": "APPLE", "tgt_id": "IPHONE"}])
+        entities=[{"entity_name": "APPLE", "entity_type": "ORGANIZATION"}],
+        relationships=[{"src_id": "APPLE", "tgt_id": "IPHONE"}]
     )
     mock_entity_extractor.return_value = mock_prediction
 
@@ -62,8 +58,8 @@ async def test_generate_dataset(mock_chunks, mock_entity_extractor, tmp_path):
     assert hasattr(result[0], 'entities')
     assert hasattr(result[0], 'relationships')
     assert result[0].input_text == "Apple announced a new iPhone model."
-    assert result[0].entities.context == [{"entity_name": "APPLE", "entity_type": "ORGANIZATION"}]
-    assert result[0].relationships.context == [{"src_id": "APPLE", "tgt_id": "IPHONE"}]
+    assert result[0].entities == [{"entity_name": "APPLE", "entity_type": "ORGANIZATION"}]
+    assert result[0].relationships == [{"src_id": "APPLE", "tgt_id": "IPHONE"}]
 
 
 @pytest.mark.asyncio
@@ -82,8 +78,8 @@ async def test_extract_entities_dspy(mock_chunks, mock_graph_storage, mock_vecto
         "order": 1
     }
     mock_prediction = Mock(
-        entities=Entities(context=[mock_entity]),
-        relationships=Relationships(context=[mock_relationship])
+        entities=[mock_entity],
+        relationships=[mock_relationship]
     )
 
     with patch('nano_graphrag.entity_extraction.extract.EntityRelationshipExtractor') as mock_extractor_class:

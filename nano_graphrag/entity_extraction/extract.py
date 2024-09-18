@@ -75,16 +75,14 @@ async def extract_entities_dspy(
         maybe_nodes = defaultdict(list)
         maybe_edges = defaultdict(list)
   
-        for entity in prediction.entities.context:
-            entity_dict = entity.dict()
-            entity_dict["source_id"] = chunk_key
-            maybe_nodes[entity_dict['entity_name']].append(entity_dict)
+        for entity in prediction.entities:
+            entity["source_id"] = chunk_key
+            maybe_nodes[entity['entity_name']].append(entity)
             already_entities += 1
 
-        for relationship in prediction.relationships.context:
-            relationship_dict = relationship.dict()
-            relationship_dict["source_id"] = chunk_key
-            maybe_edges[(relationship_dict['src_id'], relationship_dict['tgt_id'])].append(relationship_dict)
+        for relationship in prediction.relationships:
+            relationship["source_id"] = chunk_key
+            maybe_edges[(relationship['src_id'], relationship['tgt_id'])].append(relationship)
             already_relations += 1
 
         already_processed += 1
