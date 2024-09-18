@@ -25,8 +25,7 @@ class TestSeparatorSplitter(unittest.TestCase):
             self.tokenize("Another test."),
         ]
         result = splitter.split_tokens(tokens)
-        import pdb
-        pdb.set_trace()
+
         self.assertEqual(result, expected)
 
     def test_chunk_size_limit(self):
@@ -56,7 +55,6 @@ class TestSeparatorSplitter(unittest.TestCase):
             self.tokenize("12345"),
             self.tokenize("45678"),
             self.tokenize("7890"),
-            self.tokenize("0")
         ]
         result = splitter.split_tokens(tokens)
         self.assertEqual(result, expected)

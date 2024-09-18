@@ -74,7 +74,9 @@ class SeparatorSplitter:
     def _split_chunk(self, chunk: List[int]) -> List[List[int]]:
         result = []
         for i in range(0, len(chunk), self._chunk_size - self._chunk_overlap):
-            result.append(chunk[i:i + self._chunk_size])
+            new_chunk = chunk[i:i + self._chunk_size]
+            if len(new_chunk) > self._chunk_overlap:  # 只有当 chunk 长度大于 overlap 时才添加
+                result.append(new_chunk)
         return result
 
     def _enforce_overlap(self, chunks: List[List[int]]) -> List[List[int]]:
