@@ -1,4 +1,5 @@
 import dspy
+import json
 from pydantic import BaseModel, Field
 from nano_graphrag._utils import logger, clean_str
 
@@ -26,46 +27,22 @@ class EntityTypes(BaseModel):
     )
 
 
-class Entity(BaseModel):
-    entity_name: str = Field(..., description="Cleaned and uppercased entity name, strictly upper case")
-    entity_type: str = Field(..., description="Cleaned and uppercased entity type, strictly upper case")
-    description: str = Field(..., description="Detailed and specific description of the entity")
-    importance_score: float = Field(ge=0.0, le=1.0, description="0 to 1, with 1 being most important")
-
-
-class Relationship(BaseModel):
-    src_id: str = Field(..., description="Cleaned and uppercased source entity, strictly upper case")
-    tgt_id: str = Field(..., description="Cleaned and uppercased target entity, strictly upper case")
-    description: str = Field(..., description="Detailed and specific description of the relationship")
-    weight: float = Field(ge=0.0, le=1.0, description="0 to 1, with 1 being most important")
-    order: int = Field(..., description="1 for direct relationships, 2 for second-order, 3 for third-order, etc")
-
-
-class Entities(BaseModel):
-    context: list[Entity]
-
-
-class Relationships(BaseModel):
-    context: list[Relationship]
-
-
 class CombinedExtraction(dspy.Signature):
     """Signature for extracting both entities and relationships from input text."""
 
-    input_text: str = dspy.InputField(desc="The text to extract entities and relationships from.")
-    entity_types: EntityTypes = dspy.InputField()
-    entities: Entities = dspy.OutputField(
+    input_text = dspy.InputField(desc="The text to extract entities and relationships from.")
+    entity_types = dspy.InputField()
+    entities = dspy.OutputField(
         desc="""
         Format:
         {
-            "context": [
+            "entities": [
                 {
                     "entity_name": "ENTITY NAME",
                     "entity_type": "ENTITY TYPE",
                     "description": "Detailed description",
-                    "importance_score": 0.8
-                },
-                ...
+                    "importance_score": "Importance score of the entity. Should be between 0 and 1 with 1 being the most important."
+                }
             ]
         }
         Each entity name should be an actual atomic word from the input text. Avoid duplicates and generic terms.
@@ -81,19 +58,18 @@ class CombinedExtraction(dspy.Signature):
         Ensure the output is strictly JSON formatted without any trailing text or comments.
         """
     )
-    relationships: Relationships = dspy.OutputField(
+    relationships = dspy.OutputField(
         desc="""
         Format:
         {
-            "context": [
+            "relationships": [
                 {
                     "src_id": "SOURCE ENTITY",
                     "tgt_id": "TARGET ENTITY",
                     "description": "Detailed description of the relationship",
-                    "weight": 0.7,
-                    "order": 1  # 1 for direct relationships, 2 for second-order, 3 for third-order, etc.
-                },
-                ...
+                    "weight": "Weight of the relationship. Should be between 0 and 1 with 1 being the strongest relationship.",
+                    "order": "Order of the relationship. 1 for direct relationships, 2 for second-order, 3 for third-order, etc."
+                }
             ]
         }
         Make sure relationship descriptions are detailed and comprehensive, including:
@@ -119,22 +95,52 @@ class CombinedSelfReflection(dspy.Signature):
     Self-reflection is on the completeness and quality of both the extracted entities and relationships.
     """
 
-    input_text: str = dspy.InputField(desc="The original input text.")
-    entity_types: EntityTypes = dspy.InputField()
-    entities: Entities = dspy.InputField(desc="List of extracted entities.")
-    relationships: Relationships = dspy.InputField(desc="List of extracted relationships.")
-    missing_entities: Entities = dspy.OutputField(
+    input_text = dspy.InputField(desc="The original input text.")
+    entity_types = dspy.InputField()
+    entities = dspy.InputField(
         desc="""
+        List of extracted entities.
         Format:
         {
-            "context": [
+            "entities": [
                 {
                     "entity_name": "ENTITY NAME",
                     "entity_type": "ENTITY TYPE",
                     "description": "Detailed description",
-                    "importance_score": 0.8
-                },
-                ...
+                    "importance_score": "Importance score of the entity. Should be between 0 and 1 with 1 being the most important."
+                }
+            ]
+        }
+        """
+    )
+    relationships = dspy.InputField(
+        desc="""
+        List of extracted relationships.
+        Format:
+        {
+            "relationships": [
+                {
+                    "src_id": "SOURCE ENTITY",
+                    "tgt_id": "TARGET ENTITY",
+                    "description": "Detailed description of the relationship",
+                    "weight": "Weight of the relationship. Should be between 0 and 1 with 1 being the strongest relationship.",
+                    "order": "Order of the relationship. 1 for direct relationships, 2 for second-order, 3 for third-order, etc."
+                }
+            ]
+        }
+        """
+    )
+    missing_entities  = dspy.OutputField(
+        desc="""
+        Format:
+        {
+            "entities": [
+                {
+                    "entity_name": "ENTITY NAME",
+                    "entity_type": "ENTITY TYPE",
+                    "description": "Detailed description",
+                    "importance_score": "Importance score of the entity. Should be between 0 and 1 with 1 being the most important."
+                }
             ]
         }
         More specifically:
@@ -145,19 +151,18 @@ class CombinedSelfReflection(dspy.Signature):
         Ensure the output is strictly JSON formatted without any trailing text or comments.
         """
     )
-    missing_relationships: Relationships = dspy.OutputField(
+    missing_relationships = dspy.OutputField(
         desc="""
         Format:
         {
-            "context": [
+            "relationships": [
                 {
                     "src_id": "SOURCE ENTITY",
                     "tgt_id": "TARGET ENTITY",
                     "description": "Detailed description of the relationship",
-                    "weight": 0.7,
-                    "order": 1  # 1 for direct, 2 for second-order, 3 for third-order
-                },
-                ...
+                    "weight": "Weight of the relationship. Should be between 0 and 1 with 1 being the strongest relationship.",
+                    "order": "Order of the relationship. 1 for direct relationships, 2 for second-order, 3 for third-order, etc."
+                }
             ]
         }
         More specifically:
@@ -177,42 +182,98 @@ class EntityRelationshipExtractor(dspy.Module):
     def __init__(self):
         super().__init__()
         self.entity_types = EntityTypes()
-        self.extractor = dspy.TypedPredictor(CombinedExtraction)
-        self.self_reflection = dspy.TypedPredictor(CombinedSelfReflection)
+        self.extractor = dspy.ChainOfThought(CombinedExtraction)
+        self.self_reflection = dspy.ChainOfThought(CombinedSelfReflection)
 
-    def forward(self, input_text: str) -> dspy.Prediction:
-        extraction_result = self.extractor(input_text=input_text, entity_types=self.entity_types)
-        reflection_result = self.self_reflection(
-            input_text=input_text,
-            entity_types=self.entity_types,
-            entities=extraction_result.entities,
-            relationships=extraction_result.relationships
-        )
-        entities = extraction_result.entities
-        missing_entities = reflection_result.missing_entities
-        relationships = extraction_result.relationships
-        missing_relationships = reflection_result.missing_relationships
-        all_entities = Entities(context=entities.context + missing_entities.context)
-        all_relationships = Relationships(context=relationships.context + missing_relationships.context)
-        logger.debug(f"Entities: {len(entities.context)} | Missed Entities: {len(missing_entities.context)} | Total Entities: {len(all_entities.context)}")
-        logger.debug(f"Relationships: {len(relationships.context)} | Missed Relationships: {len(missing_relationships.context)} | Total Relationships: {len(all_relationships.context)}")
-        
-        for entity in all_entities.context:
-            entity.entity_name = clean_str(entity.entity_name.upper())
-            entity.entity_type = clean_str(entity.entity_type.upper())
-            entity.description = clean_str(entity.description)
-            entity.importance_score = float(entity.importance_score)
+    def clean_json_string(self, json_string: str) -> list:
+        if not json_string.strip():
+            logger.warning("Received an empty JSON string")
+            return []
 
-        for relationship in all_relationships.context:
-            relationship.src_id = clean_str(relationship.src_id.upper())
-            relationship.tgt_id = clean_str(relationship.tgt_id.upper())
-            relationship.description = clean_str(relationship.description)
-            relationship.weight = float(relationship.weight)
-            relationship.order = int(relationship.order)
+        try:
+            cleaned = json_string.strip()
+            cleaned = cleaned.replace('```json', '').replace('```', '')
+            cleaned = cleaned.strip()
+            json_obj = json.loads(cleaned)
 
-        direct_relationships = sum(1 for r in all_relationships.context if r.order == 1)
-        second_order_relationships = sum(1 for r in all_relationships.context if r.order == 2)
-        third_order_relationships = sum(1 for r in all_relationships.context if r.order == 3)
-        logger.debug(f"Direct Relationships: {direct_relationships} | Second-order: {second_order_relationships} | Third-order: {third_order_relationships} | Total Relationships: {len(all_relationships.context)}")
-        return dspy.Prediction(entities=all_entities, relationships=all_relationships)
+            if isinstance(json_obj, dict):
+                for k, v in json_obj.items():
+                    if isinstance(v, list) and all(isinstance(i, dict) for i in v):
+                        return v 
+            return json_obj if isinstance(json_obj, list) else []
+
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse JSON, returning empty list")
+            return []
     
+    def forward(self, input_text: str) -> dspy.Prediction:
+        try:
+            extraction_result = self.extractor(input_text=input_text, entity_types=self.entity_types.model_dump_json())
+        except Exception as e:
+            logger.error(f"Error in extraction: {e}")
+            extraction_result = dspy.Prediction(entities='', relationships='')
+
+        entities = self.clean_json_string(extraction_result.entities) or []
+        relationships = self.clean_json_string(extraction_result.relationships) or []
+        
+        try:
+            reflection_result = self.self_reflection(
+                input_text=input_text,
+                entity_types=self.entity_types.model_dump_json(),
+                entities=json.dumps(entities),
+                relationships=json.dumps(relationships)
+            )
+        except Exception as e:
+            logger.warning(f"Self-reflection failed: {str(e)}")
+            reflection_result = dspy.Prediction(missing_entities='', missing_relationships='')
+
+        missing_entities = self.clean_json_string(reflection_result.missing_entities) or []
+        missing_relationships = self.clean_json_string(reflection_result.missing_relationships) or []
+
+        all_entities = entities + missing_entities
+        all_relationships = relationships + missing_relationships
+        
+        self.log_extraction_stats(entities, missing_entities, relationships, missing_relationships)
+
+        all_entities, all_relationships = self.clean_and_validate(all_entities, all_relationships)
+        
+        return dspy.Prediction(entities=all_entities, relationships=all_relationships)
+
+    def log_extraction_stats(self, entities: list[dict], missing_entities: list[dict], relationships: list[dict], missing_relationships: list[dict]):
+        logger.debug(f"Entities: {len(entities)} | Missed Entities: {len(missing_entities)} | Total Entities: {len(entities) + len(missing_entities)}")
+        logger.debug(f"Relationships: {len(relationships)} | Missed Relationships: {len(missing_relationships)} | Total Relationships: {len(relationships) + len(missing_relationships)}")
+
+    def clean_and_validate(self, entities: list[dict], relationships: list[dict]) -> tuple[list[dict], list[dict]]:
+        cleaned_entities = []
+        for entity in entities:
+            try:
+                cleaned_entity = dict(
+                    entity_name=clean_str(entity['entity_name'].upper()),
+                    entity_type=clean_str(entity['entity_type'].upper()),
+                    description=clean_str(entity['description']),
+                    importance_score=float(entity['importance_score'])
+                )
+                cleaned_entities.append(cleaned_entity)
+            except ValueError as e:
+                logger.warning(f"Invalid entity: {entity}. Error: {str(e)}")
+
+        cleaned_relationships = []
+        for relationship in relationships:
+            try:
+                cleaned_relationship = dict(
+                    src_id=clean_str(relationship['src_id'].upper()),
+                    tgt_id=clean_str(relationship['tgt_id'].upper()),
+                    description=clean_str(relationship['description']),
+                    weight=float(relationship['weight']),
+                    order=int(relationship['order'])
+                )
+                cleaned_relationships.append(cleaned_relationship)
+            except ValueError as e:
+                logger.warning(f"Invalid relationship: {relationship}. Error: {str(e)}")
+
+        direct_relationships = sum(1 for r in cleaned_relationships if r['order'] == 1)
+        second_order_relationships = sum(1 for r in cleaned_relationships if r['order'] == 2)
+        third_order_relationships = sum(1 for r in cleaned_relationships if r['order'] == 3)
+        logger.debug(f"Direct Relationships: {direct_relationships} | Second-order: {second_order_relationships} | Third-order: {third_order_relationships} | Total Relationships: {len(cleaned_relationships)}")
+
+        return cleaned_entities, cleaned_relationships
