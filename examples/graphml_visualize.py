@@ -1,5 +1,6 @@
 import networkx as nx
 import json
+import os
 import webbrowser
 import http.server
 import socketserver
@@ -243,24 +244,28 @@ def create_json(json_data, json_path):
 
 
 # 启动简单的HTTP服务器
-def start_server():
+def start_server(port):
     handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", 8000), handler) as httpd:
-        print("Server started at http://localhost:8000")
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        print(f"Server started at http://localhost:{port}")
         httpd.serve_forever()
 
 # 主函数
-def visualize_graphml(graphml_file, html_path):
+def visualize_graphml(graphml_file, html_path, port=8000):
     json_data = graphml_to_json(graphml_file)
-    create_json(json_data, 'graph_json.js')
+    html_dir = os.path.dirname(html_path)
+    if not os.path.exists(html_dir):
+        os.makedirs(html_dir)
+    json_path = os.path.join(html_dir, 'graph_json.js')
+    create_json(json_data, json_path)
     create_html(html_path)
     # 在后台启动服务器
-    server_thread = threading.Thread(target=start_server)
+    server_thread = threading.Thread(target=start_server(port))
     server_thread.daemon = True
     server_thread.start()
     
     # 打开默认浏览器
-    webbrowser.open('http://localhost:8000/graph_visualization.html')
+    webbrowser.open(f'http://localhost:{port}/{html_path}')
     
     print("Visualization is ready. Press Ctrl+C to exit.")
     try:
@@ -274,4 +279,4 @@ def visualize_graphml(graphml_file, html_path):
 if __name__ == "__main__":
     graphml_file = r"nano_graphrag_cache_azure_openai_TEST\graph_chunk_entity_relation.graphml"  # 替换为您的GraphML文件路径
     html_path = "graph_visualization.html"
-    visualize_graphml(graphml_file, html_path)
+    visualize_graphml(graphml_file, html_path, 11236)
