@@ -5,6 +5,8 @@ from datetime import datetime
 from functools import partial
 from typing import Callable, Dict, List, Optional, Type, Union, cast
 
+import tiktoken
+
 
 from ._llm import (
     gpt_4o_complete,
@@ -65,7 +67,7 @@ class GraphRAG:
     enable_naive_rag: bool = False
 
     # text chunking
-    chunk_func: Callable[[str, Optional[int], Optional[int], Optional[str]], List[Dict[str, Union[str, int]]]] = chunking_by_token_size
+    chunk_func: Callable[[str,List[str],tiktoken.Encoding, Optional[int], Optional[int], ], List[Dict[str, Union[str, int]]]] = chunking_by_token_size
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
@@ -264,20 +266,22 @@ class GraphRAG:
 
             # ---------- chunking
             inserting_chunks = {}
-            for doc_key, doc in new_docs.items():
-                chunks = {
-                    compute_mdhash_id(dp["content"], prefix="chunk-"): {
-                        **dp,
-                        "full_doc_id": doc_key,
-                    }
-                    for dp in self.chunk_func(
-                        doc["content"],
-                        overlap_token_size=self.chunk_overlap_token_size,
-                        max_token_size=self.chunk_token_size,
-                        tiktoken_model=self.tiktoken_model_name,
-                    )
-                }
-                inserting_chunks.update(chunks)
+            
+
+            
+            new_docs_list=list(new_docs.items())
+            docs=[new_doc[1]["content"] for new_doc in new_docs_list]
+            doc_keys=[new_doc[0] for new_doc in new_docs_list]
+            
+            
+            ENCODER = tiktoken.encoding_for_model("gpt-4o")
+            tokens=ENCODER.encode_batch(docs,num_threads=16)
+            chunks=self.chunk_func(tokens,overlap_token_size=self.chunk_overlap_token_size,
+                        max_token_size=self.chunk_token_size,doc_keys=doc_keys,tiktoken_model=ENCODER)
+            for chunk in chunks:
+                inserting_chunks.update({compute_mdhash_id(chunk["content"], prefix="chunk-"):chunk})
+            
+
             _add_chunk_keys = await self.text_chunks.filter_keys(
                 list(inserting_chunks.keys())
             )
