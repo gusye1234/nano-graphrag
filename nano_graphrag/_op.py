@@ -33,7 +33,7 @@ from .prompt import GRAPH_FIELD_SEP, PROMPTS
 
 
 def chunking_by_token_size(
-        tokens_list: list[int], doc_keys,tiktoken_model, overlap_token_size=128, max_token_size=1024,
+        tokens_list: list[list[int]], doc_keys,tiktoken_model, overlap_token_size=128, max_token_size=1024,
     ):
         
         results=[]
@@ -60,7 +60,7 @@ def chunking_by_token_size(
 
         return results
 
-def chunking_by_seperators(tokens_list: list[int], doc_keys,tiktoken_model, overlap_token_size=128, max_token_size=1024 ):
+def chunking_by_seperators(tokens_list: list[list[int]], doc_keys,tiktoken_model, overlap_token_size=128, max_token_size=1024 ):
     from nano_graphrag._spliter import SeparatorSplitter
 
     DEFAULT_SEPERATORS=[
