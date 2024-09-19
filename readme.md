@@ -231,6 +231,8 @@ Some important prompts:
 
 <details>
 <summary>Customize Chunking</summary>
+
+
 `nano-graphrag` allow you to customize your own chunking method, check out the [example](./examples/using_custom_chunking_method.py).
 
 Switch to the built-in text splitter chunking method:
