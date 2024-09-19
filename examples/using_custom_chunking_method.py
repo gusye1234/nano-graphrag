@@ -1,68 +1,43 @@
-
-
 from nano_graphrag._utils import encode_string_by_tiktoken
 from nano_graphrag.base import QueryParam
 from nano_graphrag.graphrag import GraphRAG
+from nano_graphrag._op import chunking_by_seperators
 
 
-def chunking_by_specific_separators(
-    content: str, overlap_token_size=128, max_token_size=1024, tiktoken_model="gpt-4o",
+def chunking_by_token_size(
+    tokens_list: list[list[int]],  # nano-graphrag may pass a batch of docs' tokens
+    doc_keys: list[str],  # nano-graphrag may pass a batch of docs' key ids
+    tiktoken_model,  # a titoken model
+    overlap_token_size=128,
+    max_token_size=1024,
 ):
-    from langchain_text_splitters  import RecursiveCharacterTextSplitter
-    
 
-    text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(chunk_size=max_token_size,
-        chunk_overlap=overlap_token_size,
-        # length_function=lambda x: len(encode_string_by_tiktoken(x)),
-        model_name=tiktoken_model,
-        is_separator_regex=False,
-        separators=[
-            # Paragraph separators
-            "\n\n",
-            "\r\n\r\n",
-            # Line breaks
-            "\n",
-            "\r\n",
-            # Sentence ending punctuation
-            "。",  # Chinese period
-            "．",  # Full-width dot
-            ".",  # English period
-            "！",  # Chinese exclamation mark
-            "!",  # English exclamation mark
-            "？",  # Chinese question mark
-            "?",  # English question mark
-            # Whitespace characters
-            " ",  # Space
-            "\t",  # Tab
-            "\u3000",  # Full-width space
-            # Special characters
-            "\u200b",  # Zero-width space (used in some Asian languages)
-            # Final fallback
-            "",
-        ])
-    texts = text_splitter.split_text(content)
-    
     results = []
-    for index, chunk_content in enumerate(texts):
-        
-        results.append(
-            {
-                # "tokens": None,
-                "content": chunk_content.strip(),
-                "chunk_order_index": index,
-            }
-        )
+    for index, tokens in enumerate(tokens_list):
+        chunk_token = []
+        lengths = []
+        for start in range(0, len(tokens), max_token_size - overlap_token_size):
+
+            chunk_token.append(tokens[start : start + max_token_size])
+            lengths.append(min(max_token_size, len(tokens) - start))
+
+        chunk_token = tiktoken_model.decode_batch(chunk_token)
+        for i, chunk in enumerate(chunk_token):
+
+            results.append(
+                {
+                    "tokens": lengths[i],
+                    "content": chunk.strip(),
+                    "chunk_order_index": i,
+                    "full_doc_id": doc_keys[index],
+                }
+            )
+
     return results
 
 
 WORKING_DIR = "./nano_graphrag_cache_local_embedding_TEST"
 rag = GraphRAG(
     working_dir=WORKING_DIR,
-    chunk_func=chunking_by_specific_separators,
+    chunk_func=chunking_by_seperators,
 )
-
-with open("../tests/mock_data.txt", encoding="utf-8-sig") as f:
-    FAKE_TEXT = f.read()
-
-# rag.insert(FAKE_TEXT)
-print(rag.query("What the main theme of this story?", param=QueryParam(mode="local")))

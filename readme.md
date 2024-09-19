@@ -176,6 +176,8 @@ Below are the components you can use:
 |                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
 |                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |      [examples](./examples)      |
 | Visualization   |                           graphml                            |      [examples](./examples)      |
+| Chunking        |                        by token size                         |             Built-in             |
+|                 |                       by text splitter                       |             Built-in             |
 
 - `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 
@@ -226,6 +228,22 @@ Some important prompts:
 - `PROMPTS["fail_response"]` is the fallback response when nothing is related to the user query.
 
 </details>
+
+<details>
+<summary>Customize Chunking</summary>
+`nano-graphrag` allow you to customize your own chunking method, check out the [example](./examples/using_custom_chunking_method.py).
+
+Switch to the built-in text splitter chunking method:
+
+```python
+from nano_graphrag._op import chunking_by_seperators
+
+GraphRAG(...,chunk_func=chunking_by_seperators,...)
+```
+
+</details>
+
+
 
 <details>
 <summary>LLM Function</summary>
