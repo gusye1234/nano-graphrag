@@ -5,6 +5,8 @@ from datetime import datetime
 from functools import partial
 from typing import Callable, Dict, List, Optional, Type, Union, cast
 
+import tiktoken
+
 
 from ._llm import (
     gpt_4o_complete,
@@ -18,6 +20,7 @@ from ._op import (
     chunking_by_token_size,
     extract_entities,
     generate_community_report,
+    get_chunks,
     local_query,
     global_query,
     naive_query,
@@ -65,7 +68,7 @@ class GraphRAG:
     enable_naive_rag: bool = False
 
     # text chunking
-    chunk_func: Callable[[str, Optional[int], Optional[int], Optional[str]], List[Dict[str, Union[str, int]]]] = chunking_by_token_size
+    chunk_func: Callable[[list[list[int]],List[str],tiktoken.Encoding, Optional[int], Optional[int], ], List[Dict[str, Union[str, int]]]] = chunking_by_token_size
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
     tiktoken_model_name: str = "gpt-4o"
@@ -263,21 +266,11 @@ class GraphRAG:
             logger.info(f"[New Docs] inserting {len(new_docs)} docs")
 
             # ---------- chunking
-            inserting_chunks = {}
-            for doc_key, doc in new_docs.items():
-                chunks = {
-                    compute_mdhash_id(dp["content"], prefix="chunk-"): {
-                        **dp,
-                        "full_doc_id": doc_key,
-                    }
-                    for dp in self.chunk_func(
-                        doc["content"],
-                        overlap_token_size=self.chunk_overlap_token_size,
-                        max_token_size=self.chunk_token_size,
-                        tiktoken_model=self.tiktoken_model_name,
-                    )
-                }
-                inserting_chunks.update(chunks)
+            
+            inserting_chunks = get_chunks(new_docs=new_docs,chunk_func=self.chunk_func,overlap_token_size=self.chunk_overlap_token_size,
+            max_token_size=self.chunk_token_size)
+            
+
             _add_chunk_keys = await self.text_chunks.filter_keys(
                 list(inserting_chunks.keys())
             )
