@@ -4,7 +4,6 @@ import asyncio
 from openai import BadRequestError
 from collections import defaultdict
 import dspy
-from nano_graphrag._storage import BaseGraphStorage
 from nano_graphrag.base import (
     BaseGraphStorage,
     BaseVectorStorage,
@@ -17,10 +16,14 @@ from nano_graphrag._op import _merge_edges_then_upsert, _merge_nodes_then_upsert
 
 
 async def generate_dataset(
+<<<<<<< HEAD
     chunks: dict[str, TextChunkSchema],
     filepath: str,
     save_dataset: bool = True,
     global_config: dict = {}
+=======
+    chunks: dict[str, TextChunkSchema], filepath: str, save_dataset: bool = True
+>>>>>>> 0a9d8a9 (refactor: make _storage a folder)
 ) -> list[dspy.Example]:
     entity_extractor = TypedEntityRelationshipExtractor()
 
@@ -32,6 +35,7 @@ async def generate_dataset(
     already_entities = 0
     already_relations = 0
 
+<<<<<<< HEAD
     async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]) -> dspy.Example:
         nonlocal already_processed, already_entities, already_relations
         chunk_dp = chunk_key_dp[1]
@@ -48,6 +52,18 @@ async def generate_dataset(
             input_text=content, 
             entities=entities, 
             relationships=relationships
+=======
+    async def _process_single_content(
+        chunk_key_dp: tuple[str, TextChunkSchema]
+    ) -> dspy.Example:
+        chunk_dp = chunk_key_dp[1]
+        content = chunk_dp["content"]
+        prediction = await asyncio.to_thread(entity_extractor, input_text=content)
+        example = dspy.Example(
+            input_text=content,
+            entities=prediction.entities,
+            relationships=prediction.relationships,
+>>>>>>> 0a9d8a9 (refactor: make _storage a folder)
         ).with_inputs("input_text")
         already_entities += len(entities)
         already_relations += len(relationships)
@@ -85,7 +101,7 @@ async def extract_entities_dspy(
 
     if global_config.get("use_compiled_dspy_entity_relationship", False):
         entity_extractor.load(global_config["entity_relationship_module_path"])
-    
+
     ordered_chunks = list(chunks.items())
     already_processed = 0
     already_entities = 0
@@ -96,6 +112,7 @@ async def extract_entities_dspy(
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
+<<<<<<< HEAD
         try:
             prediction = await asyncio.to_thread(
                 entity_extractor, input_text=content
@@ -116,6 +133,25 @@ async def extract_entities_dspy(
         for relationship in relationships:
             relationship["source_id"] = chunk_key
             maybe_edges[(relationship['src_id'], relationship['tgt_id'])].append(relationship)
+=======
+        prediction = await asyncio.to_thread(entity_extractor, input_text=content)
+
+        maybe_nodes = defaultdict(list)
+        maybe_edges = defaultdict(list)
+
+        for entity in prediction.entities.context:
+            entity_dict = entity.dict()
+            entity_dict["source_id"] = chunk_key
+            maybe_nodes[entity_dict["entity_name"]].append(entity_dict)
+            already_entities += 1
+
+        for relationship in prediction.relationships.context:
+            relationship_dict = relationship.dict()
+            relationship_dict["source_id"] = chunk_key
+            maybe_edges[
+                (relationship_dict["src_id"], relationship_dict["tgt_id"])
+            ].append(relationship_dict)
+>>>>>>> 0a9d8a9 (refactor: make _storage a folder)
             already_relations += 1
 
         already_processed += 1
