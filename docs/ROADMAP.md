@@ -1,7 +1,7 @@
 ## Next Version
 
-- [ ] Add neo4j for better visualization
-- [x] Add DSpy for prompt-tuning
+- [ ] Add neo4j for better visualization @gusye1234
+- [ ] Add DSpy for prompt-tuning to make small models(Qwen2 7B, Llama 3.1 8B...) can extract entities. @NumberChiffre
 
 
 
