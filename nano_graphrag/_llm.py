@@ -59,6 +59,7 @@ async def gpt_4o_complete(
     )
 
 
+
 async def gpt_4o_mini_complete(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:

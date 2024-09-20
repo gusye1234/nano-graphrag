@@ -373,7 +373,7 @@ async def extract_entities(
             already_processed % len(PROMPTS["process_tickers"])
         ]
         print(
-            f"{now_ticks} Processed {already_processed} chunks, {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
+            f"{now_ticks} Processed {already_processed}({already_processed*100//len(ordered_chunks)}%) chunks,  {already_entities} entities(duplicated), {already_relations} relations(duplicated)\r",
             end="",
             flush=True,
         )
