@@ -19,9 +19,14 @@ from nano_graphrag._op import _merge_edges_then_upsert, _merge_nodes_then_upsert
 async def generate_dataset(
     chunks: dict[str, TextChunkSchema],
     filepath: str,
-    save_dataset: bool = True
+    save_dataset: bool = True,
+    global_config: dict = {}
 ) -> list[dspy.Example]:
     entity_extractor = TypedEntityRelationshipExtractor()
+
+    if global_config.get("use_compiled_dspy_entity_relationship", False):
+        entity_extractor.load(global_config["entity_relationship_module_path"])
+    
     ordered_chunks = list(chunks.items())
     already_processed = 0
     already_entities = 0
@@ -91,19 +96,24 @@ async def extract_entities_dspy(
         chunk_key = chunk_key_dp[0]
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
-        prediction = await asyncio.to_thread(
-            entity_extractor, input_text=content
-        )
-
+        try:
+            prediction = await asyncio.to_thread(
+                entity_extractor, input_text=content
+            )
+            entities, relationships = prediction.entities, prediction.relationships
+        except BadRequestError as e:
+            logger.error(f"Error in TypedEntityRelationshipExtractor: {e}")
+            entities, relationships = [], []
+        
         maybe_nodes = defaultdict(list)
         maybe_edges = defaultdict(list)
   
-        for entity in prediction.entities:
+        for entity in entities:
             entity["source_id"] = chunk_key
             maybe_nodes[entity['entity_name']].append(entity)
             already_entities += 1
 
-        for relationship in prediction.relationships:
+        for relationship in relationships:
             relationship["source_id"] = chunk_key
             maybe_edges[(relationship['src_id'], relationship['tgt_id'])].append(relationship)
             already_relations += 1
