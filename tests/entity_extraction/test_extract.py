@@ -15,7 +15,7 @@ def mock_chunks():
 
 @pytest.fixture
 def mock_entity_extractor():
-    with patch('nano_graphrag.entity_extraction.extract.EntityRelationshipExtractor') as mock:
+    with patch('nano_graphrag.entity_extraction.extract.TypedEntityRelationshipExtractor') as mock:
         mock_instance = Mock()
         mock.return_value = mock_instance
         yield mock_instance
@@ -82,7 +82,7 @@ async def test_extract_entities_dspy(mock_chunks, mock_graph_storage, mock_vecto
         relationships=[mock_relationship]
     )
 
-    with patch('nano_graphrag.entity_extraction.extract.EntityRelationshipExtractor') as mock_extractor_class:
+    with patch('nano_graphrag.entity_extraction.extract.TypedEntityRelationshipExtractor') as mock_extractor_class:
         mock_extractor_instance = Mock()
         mock_extractor_instance.return_value = mock_prediction
         mock_extractor_class.return_value = mock_extractor_instance

@@ -2,16 +2,16 @@ import pytest
 import dspy
 from unittest.mock import Mock, patch
 from nano_graphrag.entity_extraction.metric import (
-    relationship_similarity_metric,
+    relationships_similarity_metric,
     entity_recall_metric,
 )
 
 
 @pytest.fixture
 def mock_dspy_predict():
-    with patch('nano_graphrag.entity_extraction.metric.dspy.ChainOfThought') as mock_predict:
+    with patch('nano_graphrag.entity_extraction.metric.dspy.TypedChainOfThought') as mock_predict:
         mock_instance = Mock()
-        mock_instance.return_value = dspy.Prediction(similarity_score="0.75")
+        mock_instance.return_value = dspy.Prediction(similarity_score=0.75)
         mock_predict.return_value = mock_instance
         yield mock_predict
 
@@ -62,7 +62,7 @@ async def test_relationship_similarity_metric(sample_relationship, example, pred
         {**sample_relationship, "src_id": "ENTITY2", "tgt_id": "ENTITY3", "description": "is linked with"},
     ])
 
-    similarity = relationship_similarity_metric(gold, pred)
+    similarity = relationships_similarity_metric(gold, pred)
     assert 0 <= similarity <= 1
 
 
@@ -88,7 +88,7 @@ async def test_relationship_similarity_metric_no_common_keys(sample_relationship
     gold = example([{**sample_relationship, "src_id": "ENTITY1", "tgt_id": "ENTITY2", "description": "is related to"}])
     pred = prediction([{**sample_relationship, "src_id": "ENTITY3", "tgt_id": "ENTITY4", "description": "is connected with"}])
 
-    similarity = relationship_similarity_metric(gold, pred)
+    similarity = relationships_similarity_metric(gold, pred)
     assert 0 <= similarity <= 1
 
 
@@ -113,7 +113,7 @@ async def test_relationship_similarity_metric_identical_descriptions(sample_rela
     gold = example([{**sample_relationship, "src_id": "ENTITY1", "tgt_id": "ENTITY2", "description": "is related to"}])
     pred = prediction([{**sample_relationship, "src_id": "ENTITY1", "tgt_id": "ENTITY2", "description": "is related to"}])
 
-    similarity = relationship_similarity_metric(gold, pred)
+    similarity = relationships_similarity_metric(gold, pred)
     assert similarity == 0.75
 
 
@@ -136,18 +136,4 @@ async def test_relationship_similarity_metric_no_relationships(example, predicti
     pred = prediction([])
 
     with pytest.raises(KeyError):
-        similarity = relationship_similarity_metric(gold, pred)
-
-
-@pytest.mark.asyncio
-async def test_relationship_similarity_metric_invalid_score(sample_relationship, example, prediction):
-    with patch('nano_graphrag.entity_extraction.metric.dspy.Predict') as mock_predict:
-        mock_instance = Mock()
-        mock_instance.return_value = dspy.Prediction(similarity_score="invalid")
-        mock_predict.return_value = mock_instance
-
-        gold = example([{**sample_relationship, "src_id": "ENTITY1", "tgt_id": "ENTITY2", "description": "is related to"}])
-        pred = prediction([{**sample_relationship, "src_id": "ENTITY1", "tgt_id": "ENTITY2", "description": "is connected to"}])
-
-        similarity = relationship_similarity_metric(gold, pred)
-        assert similarity == 0.0
+        similarity = relationships_similarity_metric(gold, pred)
