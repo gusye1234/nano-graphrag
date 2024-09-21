@@ -138,14 +138,14 @@ if __name__ == "__main__":
     """
     lm = dspy.OpenAI(
         model="deepseek-chat", 
-        model_type="chat", 
+        model_type="chat",
+        api_provider="openai",
         api_key=os.environ["DEEPSEEK_API_KEY"], 
         base_url=os.environ["DEEPSEEK_BASE_URL"], 
         system_prompt=system_prompt, 
         temperature=1.0,
-        top_p=1,
-        max_tokens=4096
+        max_tokens=8192
     )
-    dspy.settings.configure(lm=lm)
+    dspy.settings.configure(lm=lm, experimental=True)
     insert()
     query()
