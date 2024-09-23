@@ -61,6 +61,10 @@ class StorageNameSpace:
     namespace: str
     global_config: dict
 
+    async def index_start_callback(self):
+        """commit the storage operations after indexing"""
+        pass
+
     async def index_done_callback(self):
         """commit the storage operations after indexing"""
         pass

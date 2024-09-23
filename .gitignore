@@ -1,8 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 test_cache.json
-run_test.py
-run_test_zh.py
+run_test*.py
 nano_graphrag_cache*/
 *.txt
 examples/benchmarks/fixtures/

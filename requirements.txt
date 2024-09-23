@@ -8,3 +8,4 @@ hnswlib
 xxhash
 tenacity
 dspy-ai
+neo4j
