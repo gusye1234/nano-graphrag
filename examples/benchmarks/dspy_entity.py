@@ -114,19 +114,20 @@ async def run_benchmark(text: str):
     system_prompt_dspy = f"{system_prompt} Time: {time.time()}."
     lm = dspy.OpenAI(
         model="deepseek-chat", 
-        model_type="chat", 
+        model_type="chat",
+        api_provider="openai",
         api_key=os.environ["DEEPSEEK_API_KEY"], 
         base_url=os.environ["DEEPSEEK_BASE_URL"], 
-        system_prompt=system_prompt_dspy, 
+        system_prompt=system_prompt, 
         temperature=1.0,
-        top_p=1,
-        max_tokens=4096
+        max_tokens=8192
     )
-    dspy.settings.configure(lm=lm)
+    dspy.settings.configure(lm=lm, experimental=True)
     graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True)
     print(f"Execution time with DSPy-AI: {time_with_dspy:.2f} seconds")
     print_extraction_results(graph_storage_with_dspy)
 
+    import pdb; pdb.set_trace()
     print("Running benchmark without DSPy-AI:")
     system_prompt_no_dspy = f"{system_prompt} Time: {time.time()}."
     graph_storage_without_dspy, time_without_dspy = await benchmark_entity_extraction(text, system_prompt_no_dspy, use_dspy=False)
