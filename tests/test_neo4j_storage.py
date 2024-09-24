@@ -6,6 +6,9 @@ from nano_graphrag import GraphRAG
 from nano_graphrag._storage import Neo4jStorage
 from nano_graphrag._utils import wrap_embedding_func_with_attrs
 
+if os.environ.get("NANO_GRAPHRAG_TEST_IGNORE_NEO4J", False):
+    pytest.skip("skipping neo4j tests", allow_module_level=True)
+
 
 @pytest.fixture(scope="module")
 def neo4j_config():
