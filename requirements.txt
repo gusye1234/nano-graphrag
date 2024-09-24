@@ -8,3 +8,6 @@ hnswlib
 xxhash
 tenacity
 dspy-ai
+pgvector==0.3.3
+asyncpg==0.29.0
+nest_asyncio==1.6.0

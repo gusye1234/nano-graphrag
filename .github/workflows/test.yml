@@ -41,7 +41,23 @@ jobs:
       - name: Lint with flake8
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Setup postgres
+        uses: ikalnytskyi/action-setup-postgres@v6
+        with:
+          username: ci
+          password: sw0rdfish
+          database: test
+          port: 12345
+          postgres-version: "14"
+          ssl: "on"
+        id: postgres
+      - name: Install pgvector
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install postgresql-14-pgvector
       - name: Build and Test
+        env:
+          POSTGRES_CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
         run: |
           python -m pytest -o log_cli=true -o log_cli_level="INFO" --cov=nano_graphrag --cov-report=xml -v ./
       - name: Check codecov file
