@@ -23,7 +23,7 @@ jobs:
     name: Tests on ${{ matrix.os }} for ${{ matrix.python-version }}
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: [3.10]
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
