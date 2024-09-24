@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - dev
-      - "**/**"
+      - "**"
     paths-ignore:
       - '**/*.md'
       - '**/*.ipynb'
