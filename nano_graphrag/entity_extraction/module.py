@@ -1,3 +1,4 @@
+from typing import Union
 import dspy
 from pydantic import BaseModel, Field
 from nano_graphrag._utils import clean_str
@@ -70,7 +71,7 @@ class CombinedExtraction(dspy.Signature):
 
     input_text: str = dspy.InputField(desc="The text to extract entities and relationships from.")
     entity_types: list[str] = dspy.InputField(desc="List of entity types used for extraction.")
-    entities_relationships: list[Entity | Relationship] = dspy.OutputField(desc="List of entities and relationships extracted from the text.")
+    entities_relationships: list[Union[Entity, Relationship]] = dspy.OutputField(desc="List of entities and relationships extracted from the text.")
 
 
 class TypedEntityRelationshipExtractorException(dspy.Module):
