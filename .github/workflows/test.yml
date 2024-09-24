@@ -17,6 +17,7 @@ on:
       - '**/*.md'
       - '**/*.ipynb'
       - 'examples/**'
+  workflow_dispatch: 
 
 jobs:
   test:
