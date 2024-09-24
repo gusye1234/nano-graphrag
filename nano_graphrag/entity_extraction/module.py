@@ -99,8 +99,6 @@ class TypedEntityRelationshipExtractor(dspy.Module):
         super().__init__()
         self.lm = lm
         self.entity_types = ENTITY_TYPES
-        
-        # [Terence]: Reminder to switch to ChainOfThought if possible with dspy-ai>=2.5.0
         self.extractor = dspy.TypedChainOfThought(
             signature=CombinedExtraction, 
             reasoning=reasoning, 
