@@ -4,6 +4,20 @@ from unittest.mock import AsyncMock, Mock, patch
 from nano_graphrag import _llm
 
 
+def test_get_openai_async_client_instance():
+    with patch("nano_graphrag._llm.AsyncOpenAI") as mock_openai:
+        mock_openai.return_value = "CLIENT"
+        client = _llm.get_openai_async_client_instance()
+    assert client == "CLIENT"
+
+
+def test_get_azure_openai_async_client_instance():
+    with patch("nano_graphrag._llm.AsyncAzureOpenAI") as mock_openai:
+        mock_openai.return_value = "AZURE_CLIENT"
+        client = _llm.get_azure_openai_async_client_instance()
+    assert client == "AZURE_CLIENT"
+
+
 @pytest.fixture
 def mock_openai_client():
     with patch("nano_graphrag._llm.get_openai_async_client_instance") as mock_openai:
