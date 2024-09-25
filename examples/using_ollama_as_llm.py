@@ -18,6 +18,7 @@ async def ollama_model_if_cache(
 ) -> str:
     # remove kwargs that are not supported by ollama
     kwargs.pop("max_tokens", None)
+    kwargs.pop("response_format", None)
 
     ollama_client = ollama.AsyncClient()
     messages = []

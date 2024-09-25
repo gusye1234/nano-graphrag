@@ -66,7 +66,7 @@ def test_neo4j_storage_init():
 async def test_upsert_and_get_node(neo4j_storage):
     node_id = "node1"
     node_data = {"attr1": "value1", "attr2": "value2"}
-    return_data = {"id": node_id, **node_data}
+    return_data = {"id": node_id, "clusters": "[]", **node_data}
 
     await neo4j_storage.upsert_node(node_id, node_data)
 
@@ -190,7 +190,7 @@ async def test_nonexistent_node_and_edge(neo4j_storage):
     assert await neo4j_storage.has_edge("node1", "node2") is False
     assert await neo4j_storage.get_node("nonexistent") is None
     assert await neo4j_storage.get_edge("node1", "node2") is None
-    assert await neo4j_storage.get_node_edges("nonexistent") is None
+    assert await neo4j_storage.get_node_edges("nonexistent") == []
     assert await neo4j_storage.node_degree("nonexistent") == 0
     assert await neo4j_storage.edge_degree("node1", "node2") == 0
 
