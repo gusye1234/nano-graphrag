@@ -4,7 +4,6 @@ import asyncio
 from openai import BadRequestError
 from collections import defaultdict
 import dspy
-from nano_graphrag._storage import BaseGraphStorage
 from nano_graphrag.base import (
     BaseGraphStorage,
     BaseVectorStorage,
@@ -20,34 +19,32 @@ async def generate_dataset(
     chunks: dict[str, TextChunkSchema],
     filepath: str,
     save_dataset: bool = True,
-    global_config: dict = {}
+    global_config: dict = {},
 ) -> list[dspy.Example]:
     entity_extractor = TypedEntityRelationshipExtractor()
 
     if global_config.get("use_compiled_dspy_entity_relationship", False):
         entity_extractor.load(global_config["entity_relationship_module_path"])
-    
+
     ordered_chunks = list(chunks.items())
     already_processed = 0
     already_entities = 0
     already_relations = 0
 
-    async def _process_single_content(chunk_key_dp: tuple[str, TextChunkSchema]) -> dspy.Example:
+    async def _process_single_content(
+        chunk_key_dp: tuple[str, TextChunkSchema]
+    ) -> dspy.Example:
         nonlocal already_processed, already_entities, already_relations
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
         try:
-            prediction = await asyncio.to_thread(
-                entity_extractor, input_text=content
-            )
+            prediction = await asyncio.to_thread(entity_extractor, input_text=content)
             entities, relationships = prediction.entities, prediction.relationships
         except BadRequestError as e:
             logger.error(f"Error in TypedEntityRelationshipExtractor: {e}")
             entities, relationships = [], []
         example = dspy.Example(
-            input_text=content, 
-            entities=entities, 
-            relationships=relationships
+            input_text=content, entities=entities, relationships=relationships
         ).with_inputs("input_text")
         already_entities += len(entities)
         already_relations += len(relationships)
@@ -65,12 +62,18 @@ async def generate_dataset(
     examples = await asyncio.gather(
         *[_process_single_content(c) for c in ordered_chunks]
     )
-    filtered_examples = [example for example in examples if len(example.entities) > 0 and len(example.relationships) > 0]
+    filtered_examples = [
+        example
+        for example in examples
+        if len(example.entities) > 0 and len(example.relationships) > 0
+    ]
     num_filtered_examples = len(examples) - len(filtered_examples)
     if save_dataset:
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             pickle.dump(filtered_examples, f)
-            logger.info(f"Saved {len(filtered_examples)} examples with keys: {filtered_examples[0].keys()}, filtered {num_filtered_examples} examples")
+            logger.info(
+                f"Saved {len(filtered_examples)} examples with keys: {filtered_examples[0].keys()}, filtered {num_filtered_examples} examples"
+            )
 
     return filtered_examples
 
@@ -85,7 +88,7 @@ async def extract_entities_dspy(
 
     if global_config.get("use_compiled_dspy_entity_relationship", False):
         entity_extractor.load(global_config["entity_relationship_module_path"])
-    
+
     ordered_chunks = list(chunks.items())
     already_processed = 0
     already_entities = 0
@@ -97,25 +100,25 @@ async def extract_entities_dspy(
         chunk_dp = chunk_key_dp[1]
         content = chunk_dp["content"]
         try:
-            prediction = await asyncio.to_thread(
-                entity_extractor, input_text=content
-            )
+            prediction = await asyncio.to_thread(entity_extractor, input_text=content)
             entities, relationships = prediction.entities, prediction.relationships
         except BadRequestError as e:
             logger.error(f"Error in TypedEntityRelationshipExtractor: {e}")
             entities, relationships = [], []
-        
+
         maybe_nodes = defaultdict(list)
         maybe_edges = defaultdict(list)
-  
+
         for entity in entities:
             entity["source_id"] = chunk_key
-            maybe_nodes[entity['entity_name']].append(entity)
+            maybe_nodes[entity["entity_name"]].append(entity)
             already_entities += 1
 
         for relationship in relationships:
             relationship["source_id"] = chunk_key
-            maybe_edges[(relationship['src_id'], relationship['tgt_id'])].append(relationship)
+            maybe_edges[(relationship["src_id"], relationship["tgt_id"])].append(
+                relationship
+            )
             already_relations += 1
 
         already_processed += 1

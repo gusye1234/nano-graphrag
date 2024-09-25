@@ -13,6 +13,23 @@ import os
 from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
 from .base import BaseKVStorage
 
+global_openai_async_client = None
+global_azure_openai_async_client = None
+
+
+def get_openai_async_client_instance():
+    global global_openai_async_client
+    if global_openai_async_client is None:
+        global_openai_async_client = AsyncOpenAI()
+    return global_openai_async_client
+
+
+def get_azure_openai_async_client_instance():
+    global global_azure_openai_async_client
+    if global_azure_openai_async_client is None:
+        global_azure_openai_async_client = AsyncAzureOpenAI()
+    return global_azure_openai_async_client
+
 
 @retry(
     stop=stop_after_attempt(5),
@@ -22,7 +39,7 @@ from .base import BaseKVStorage
 async def openai_complete_if_cache(
     model, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    openai_async_client = AsyncOpenAI()
+    openai_async_client = get_openai_async_client_instance()
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
@@ -78,7 +95,7 @@ async def gpt_4o_mini_complete(
     retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def openai_embedding(texts: list[str]) -> np.ndarray:
-    openai_async_client = AsyncOpenAI()
+    openai_async_client = get_openai_async_client_instance()
     response = await openai_async_client.embeddings.create(
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )
@@ -93,7 +110,7 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 async def azure_openai_complete_if_cache(
     deployment_name, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    azure_openai_client = AsyncAzureOpenAI()
+    azure_openai_client = get_azure_openai_async_client_instance()
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
@@ -154,11 +171,7 @@ async def azure_gpt_4o_mini_complete(
     retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
 )
 async def azure_openai_embedding(texts: list[str]) -> np.ndarray:
-    azure_openai_client = AsyncAzureOpenAI(
-        api_key=os.environ.get("API_KEY_EMB"),
-        api_version=os.environ.get("API_VERSION_EMB"),
-        azure_endpoint=os.environ.get("AZURE_ENDPOINT_EMB"),
-    )
+    azure_openai_client = get_azure_openai_async_client_instance()
     response = await azure_openai_client.embeddings.create(
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )

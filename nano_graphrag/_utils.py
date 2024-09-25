@@ -17,6 +17,18 @@ logger = logging.getLogger("nano-graphrag")
 ENCODER = None
 
 
+def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
+    try:
+        # If there is already an event loop, use it.
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # If in a sub-thread, create a new event loop.
+        logger.info("Creating a new event loop in a sub-thread.")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop
+
+
 def locate_json_string_body_from_string(content: str) -> Union[str, None]:
     """Locate the JSON string body from a string"""
     maybe_json_str = re.search(r"{.*}", content, re.DOTALL)

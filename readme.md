@@ -42,7 +42,7 @@
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**portable**](#Components), [**asynchronous**](#Async) and fully typed.
+👌 Small yet [**portable**](#Components)(faiss, neo4j, ollama...), [**asynchronous**](#Async) and fully typed.
 
 
 
@@ -164,20 +164,22 @@ await graph_func.aquery(...)
 
 Below are the components you can use:
 
-| Type            |                             What                             |              Where               |
-| :-------------- | :----------------------------------------------------------: | :------------------------------: |
-| LLM             |                            OpenAI                            |             Built-in             |
-|                 |                           DeepSeek                           |      [examples](./examples)      |
-|                 |                           `ollama`                           |      [examples](./examples)      |
-| Embedding       |                            OpenAI                            |             Built-in             |
-|                 |                    Sentence-transformers                     |      [examples](./examples)      |
-| Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |             Built-in             |
-|                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        | Built-in, [examples](./examples) |
-|                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |      [examples](./examples)      |
-|                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |      [examples](./examples)      |
-| Visualization   |                           graphml                            |      [examples](./examples)      |
-| Chunking        |                        by token size                         |             Built-in             |
-|                 |                       by text splitter                       |             Built-in             |
+| Type            |                             What                             |                       Where                       |
+| :-------------- | :----------------------------------------------------------: | :-----------------------------------------------: |
+| LLM             |                            OpenAI                            |                     Built-in                      |
+|                 |                           DeepSeek                           |              [examples](./examples)               |
+|                 |                           `ollama`                           |              [examples](./examples)               |
+| Embedding       |                            OpenAI                            |                     Built-in                      |
+|                 |                    Sentence-transformers                     |              [examples](./examples)               |
+| Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |                     Built-in                      |
+|                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        |         Built-in, [examples](./examples)          |
+|                 |  [`milvus-lite`](https://github.com/milvus-io/milvus-lite)   |              [examples](./examples)               |
+|                 | [faiss](https://github.com/facebookresearch/faiss?tab=readme-ov-file) |              [examples](./examples)               |
+| Graph Storage   | [`networkx`](https://networkx.org/documentation/stable/index.html) |                     Built-in                      |
+|                 |                [`neo4j`](https://neo4j.com/)                 | Built-in([doc](./docs/use_neo4j_for_graphrag.md)) |
+| Visualization   |                           graphml                            |              [examples](./examples)               |
+| Chunking        |                        by token size                         |                     Built-in                      |
+|                 |                       by text splitter                       |                     Built-in                      |
 
 - `Built-in` means we have that implementation inside `nano-graphrag`. `examples` means we have that implementation inside an tutorial under [examples](./examples) folder.
 

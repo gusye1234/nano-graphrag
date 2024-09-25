@@ -42,6 +42,8 @@ jobs:
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Build and Test
+        env:
+          NANO_GRAPHRAG_TEST_IGNORE_NEO4J: true
         run: |
           python -m pytest -o log_cli=true -o log_cli_level="INFO" --cov=nano_graphrag --cov-report=xml -v ./
       - name: Check codecov file

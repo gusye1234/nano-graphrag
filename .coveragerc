@@ -6,3 +6,6 @@ exclude_lines =
     # Don't complain if tests don't hit defensive assertion code:
     raise NotImplementedError
     logger.
+omit =
+    # Don't have a nice github action for neo4j now, so skip this file:
+    nano_graphrag/_storage/gdb_neo4j.py

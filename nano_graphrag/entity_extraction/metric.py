@@ -21,23 +21,42 @@ class AssessRelationships(dspy.Signature):
     - Balance the impact of matched and unmatched relationships in the final score.
     """
 
-    gold_relationships: list[Relationship] = dspy.InputField(desc="The gold-standard relationships to compare against.")
-    predicted_relationships: list[Relationship] = dspy.InputField(desc="The predicted relationships to compare against the gold-standard relationships.")
-    similarity_score: float = dspy.OutputField(desc="Similarity score between 0 and 1, with 1 being the highest similarity.")
+    gold_relationships: list[Relationship] = dspy.InputField(
+        desc="The gold-standard relationships to compare against."
+    )
+    predicted_relationships: list[Relationship] = dspy.InputField(
+        desc="The predicted relationships to compare against the gold-standard relationships."
+    )
+    similarity_score: float = dspy.OutputField(
+        desc="Similarity score between 0 and 1, with 1 being the highest similarity."
+    )
 
 
-def relationships_similarity_metric(gold: dspy.Example, pred: dspy.Prediction, trace=None) -> float:
+def relationships_similarity_metric(
+    gold: dspy.Example, pred: dspy.Prediction, trace=None
+) -> float:
     model = dspy.TypedChainOfThought(AssessRelationships)
-    gold_relationships = [Relationship(**item) for item in gold['relationships']]
-    predicted_relationships = [Relationship(**item) for item in pred['relationships']]
-    similarity_score = float(model(gold_relationships=gold_relationships, predicted_relationships=predicted_relationships).similarity_score)
+    gold_relationships = [Relationship(**item) for item in gold["relationships"]]
+    predicted_relationships = [Relationship(**item) for item in pred["relationships"]]
+    similarity_score = float(
+        model(
+            gold_relationships=gold_relationships,
+            predicted_relationships=predicted_relationships,
+        ).similarity_score
+    )
     return similarity_score
 
 
-def entity_recall_metric(gold: dspy.Example, pred: dspy.Prediction, trace=None) -> float:
-    true_set = set(item['entity_name'] for item in gold['entities'])
-    pred_set = set(item['entity_name'] for item in pred['entities'])
+def entity_recall_metric(
+    gold: dspy.Example, pred: dspy.Prediction, trace=None
+) -> float:
+    true_set = set(item["entity_name"] for item in gold["entities"])
+    pred_set = set(item["entity_name"] for item in pred["entities"])
     true_positives = len(pred_set.intersection(true_set))
     false_negatives = len(true_set - pred_set)
-    recall = true_positives / (true_positives + false_negatives) if (true_positives + false_negatives) > 0 else 0
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if (true_positives + false_negatives) > 0
+        else 0
+    )
     return recall

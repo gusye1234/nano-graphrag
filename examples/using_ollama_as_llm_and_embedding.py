@@ -20,11 +20,13 @@ EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_MODEL_DIM = 768
 EMBEDDING_MODEL_MAX_TOKENS = 8192
 
+
 async def ollama_model_if_cache(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
     # remove kwargs that are not supported by ollama
     kwargs.pop("max_tokens", None)
+    kwargs.pop("response_format", None)
 
     ollama_client = ollama.AsyncClient()
     messages = []
@@ -98,19 +100,20 @@ def insert():
     # rag = GraphRAG(working_dir=WORKING_DIR, enable_llm_cache=True)
     # rag.insert(FAKE_TEXT[half_len:])
 
+
 # We're using Ollama to generate embeddings for the BGE model
 @wrap_embedding_func_with_attrs(
-    embedding_dim= EMBEDDING_MODEL_DIM,
-    max_token_size= EMBEDDING_MODEL_MAX_TOKENS,
+    embedding_dim=EMBEDDING_MODEL_DIM,
+    max_token_size=EMBEDDING_MODEL_MAX_TOKENS,
 )
-
-async def ollama_embedding(texts :list[str]) -> np.ndarray:
+async def ollama_embedding(texts: list[str]) -> np.ndarray:
     embed_text = []
     for text in texts:
-      data = ollama.embeddings(model=EMBEDDING_MODEL, prompt=text)
-      embed_text.append(data["embedding"])
-    
+        data = ollama.embeddings(model=EMBEDDING_MODEL, prompt=text)
+        embed_text.append(data["embedding"])
+
     return embed_text
+
 
 if __name__ == "__main__":
     insert()

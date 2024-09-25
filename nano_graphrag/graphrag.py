@@ -35,6 +35,7 @@ from ._utils import (
     compute_mdhash_id,
     limit_async_func_call,
     convert_response_to_json,
+    always_get_an_event_loop,
     logger,
 )
 from .base import (
@@ -44,18 +45,6 @@ from .base import (
     StorageNameSpace,
     QueryParam,
 )
-
-
-def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
-    try:
-        # If there is already an event loop, use it.
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        # If in a sub-thread, create a new event loop.
-        logger.info("Creating a new event loop in a sub-thread.")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop
 
 
 @dataclass
@@ -224,7 +213,7 @@ class GraphRAG:
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
         if param.mode == "naive" and not self.enable_naive_rag:
-            raise ValueError("enable_naive_rag is False, cannot query in local mode")
+            raise ValueError("enable_naive_rag is False, cannot query in naive mode")
         if param.mode == "local":
             response = await local_query(
                 query,
@@ -259,6 +248,7 @@ class GraphRAG:
         return response
 
     async def ainsert(self, string_or_strings):
+        await self._insert_start()
         try:
             if isinstance(string_or_strings, str):
                 string_or_strings = [string_or_strings]
@@ -326,6 +316,16 @@ class GraphRAG:
             await self.text_chunks.upsert(inserting_chunks)
         finally:
             await self._insert_done()
+
+    async def _insert_start(self):
+        tasks = []
+        for storage_inst in [
+            self.chunk_entity_relation_graph,
+        ]:
+            if storage_inst is None:
+                continue
+            tasks.append(cast(StorageNameSpace, storage_inst).index_start_callback())
+        await asyncio.gather(*tasks)
 
     async def _insert_done(self):
         tasks = []
