@@ -213,7 +213,7 @@ class GraphRAG:
         if param.mode == "local" and not self.enable_local:
             raise ValueError("enable_local is False, cannot query in local mode")
         if param.mode == "naive" and not self.enable_naive_rag:
-            raise ValueError("enable_naive_rag is False, cannot query in local mode")
+            raise ValueError("enable_naive_rag is False, cannot query in naive mode")
         if param.mode == "local":
             response = await local_query(
                 query,

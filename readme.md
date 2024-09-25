@@ -42,7 +42,7 @@
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
 
-👌 Small yet [**portable**](#Components), [**asynchronous**](#Async) and fully typed.
+👌 Small yet [**portable**](#Components)(faiss, neo4j, ollama...), [**asynchronous**](#Async) and fully typed.
 
 
 

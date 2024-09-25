@@ -678,8 +678,6 @@ async def _find_most_related_community_from_entities(
 ):
     related_communities = []
     for node_d in node_datas:
-        if "clusters" not in node_d:
-            continue
         related_communities.extend(json.loads(node_d["clusters"]))
     related_community_dup_keys = [
         str(dp["cluster"])

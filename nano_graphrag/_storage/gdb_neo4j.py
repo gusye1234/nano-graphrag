@@ -1,3 +1,4 @@
+import json
 import asyncio
 from collections import defaultdict
 from neo4j import AsyncGraphDatabase
@@ -115,7 +116,21 @@ class Neo4jStorage(BaseGraphStorage):
                 node_id=node_id,
             )
             record = await result.single()
-            return record["node_data"] if record else None
+            raw_node_data = record["node_data"] if record else None
+        if raw_node_data is None:
+            return None
+        raw_node_data["clusters"] = json.dumps(
+            [
+                {
+                    "level": index,
+                    "cluster": cluster_id,
+                }
+                for index, cluster_id in enumerate(
+                    raw_node_data.get("communityIds", [])
+                )
+            ]
+        )
+        return raw_node_data
 
     async def get_edge(
         self, source_node_id: str, target_node_id: str
@@ -143,7 +158,7 @@ class Neo4jStorage(BaseGraphStorage):
             edges = []
             async for record in result:
                 edges.append((record["source"], record["target"]))
-            return edges if edges else None
+            return edges
 
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         node_type = node_data.get("entity_type", "UNKNOWN").strip('"')
