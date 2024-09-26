@@ -40,7 +40,7 @@
 
 😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
 
-🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **800 lines of code**.
+🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **1100 lines of code**.
 
 👌 Small yet [**portable**](#Components)(faiss, neo4j, ollama...), [**asynchronous**](#Async) and fully typed.
 
@@ -48,18 +48,18 @@
 
 ## Install
 
-**Install from PyPi**
-
-```shell
-pip install nano-graphrag
-```
-
-**Install from source**
+**Install from source** (recommend)
 
 ```shell
 # clone this repo first
 cd nano-graphrag
 pip install -e .
+```
+
+**Install from PyPi**
+
+```shell
+pip install nano-graphrag
 ```
 
 
