@@ -28,7 +28,7 @@ setuptools.setup(
     description="A simple, easy-to-hack GraphRAG implementation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=["nano_graphrag"],
+    packages=["nano_graphrag", "nano_graphrag._storage"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
