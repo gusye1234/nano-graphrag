@@ -125,6 +125,7 @@ class GraphRAG:
     enable_llm_cache: bool = True
 
     # extension
+    always_create_working_dir: bool = True
     addon_params: dict = field(default_factory=dict)
     convert_response_to_json_func: callable = convert_response_to_json
 
@@ -144,7 +145,7 @@ class GraphRAG:
                 "Switched the default openai funcs to Azure OpenAI if you didn't set any of it"
             )
 
-        if not os.path.exists(self.working_dir):
+        if not os.path.exists(self.working_dir) and self.always_create_working_dir:
             logger.info(f"Creating working directory {self.working_dir}")
             os.makedirs(self.working_dir)
 

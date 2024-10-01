@@ -156,7 +156,7 @@ await graph_func.aquery(...)
 
 ### Available Parameters
 
-`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters! 
+`GraphRAG` and `QueryParam` are `dataclass` in Python. Use `help(GraphRAG)` and `help(QueryParam)` to see all available parameters!  Or check out the [Advances](#Advances) section to see some options.
 
 
 
@@ -187,6 +187,17 @@ Below are the components you can use:
 - **Always welcome to contribute more components.**
 
 ## Advances
+
+
+
+<details>
+<summary>Some setup options</summary>
+
+- `GraphRAG(...,always_create_working_dir=False,...)` will skip the dir-creating step. Use it if you switch all your components to non-file storages.
+
+</details>
+
+
 
 <details>
 <summary>Only query the related context</summary>
