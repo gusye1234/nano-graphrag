@@ -1,15 +1,13 @@
 ## Next Version
 
-- [ ] Add neo4j for better visualization @gusye1234
-- [ ] Add DSpy for prompt-tuning to make small models(Qwen2 7B, Llama 3.1 8B...) can extract entities. @NumberChiffre
+- [ ] Add DSpy for prompt-tuning to make small models(Qwen2 7B, Llama 3.1 8B...) can extract entities. @NumberChiffre @gusye1234
+- [ ] Optimize Algorithm: add `global_local` query method, globally rewrite query then perform local search.
 
 
 
 ## In next few versions
 
 - [ ] Add rate limiter: support token limit (tokens per second, per minute)
-
-- [ ] Optimize Algorithm: add `global_local` query method, globally rewrite query then perform local search.
 
 - [ ] Add other advanced RAG algorithms, candidates:
 
