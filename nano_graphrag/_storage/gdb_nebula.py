@@ -594,10 +594,6 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
 
 
     async def _cluster_data_to_graph(self, cluster_data: dict[str, list[dict[str, str]]]):
-        """
-        将社区数据转换为图数据，并写入 NebulaGraph
-        :param cluster_data: 社区数据，字典类型，键为 entity ID，值为社区数据列表
-        """
         # community node: (level, cluster), with id cluster_{cluster}
         # cluster_{cluster} is the key, and value is a list of (level, cluster)
         data: dict[str, list[int, int]] = defaultdict(list)
@@ -628,7 +624,6 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
 
         update_tasks = []
         for node_id, clusters in cluster_data.items():
-            # TODO 确认这里的clusters只有数字
             update_tasks.append(update_node_clusters(node_id, clusters))
 
         await asyncio.gather(*update_tasks)
@@ -691,20 +686,19 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
         await self._cluster_data_to_graph(node_communities)
 
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
-        # 初始化一个默认字典，字典的默认值是一个包含社区信息的字典
         results = defaultdict(
             lambda: dict(
-                level=None,  # 社区的层级
-                title=None,  # 社区的标题
-                edges=set(),  # 社区内的边集合
-                nodes=set(),  # 社区内的节点集合
-                chunk_ids=set(),  # 社区内的分块ID集合
-                occurrence=0.0,  # 社区的出现频率
-                sub_communities=[],  # 子社区列表
+                level=None,
+                title=None,
+                edges=set(),
+                nodes=set(),
+                chunk_ids=set(),
+                occurrence=0.0,
+                sub_communities=[],
             )
         )
-        max_num_ids = 0  # 初始化最大ID数量
-        levels = defaultdict(set)  # 初始化一个默认字典，用于存储每个层级的社区
+        max_num_ids = 0
+        levels = defaultdict(set)
 
 
         communities_result = self.client.execute_py(
@@ -719,7 +713,6 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
             community_key = str(community_properties.get("cluster"))
             title = community_id
 
-            # 获取community连接的node
             node_query = f"MATCH (n:{self.INIT_VERTEX_TYPE})-[:{self.COMMUNITY_EDGE_TYPE}]->(c:{self.COMMUNITY_VERTEX_TYPE}) WHERE id(c) == '{community_id}' RETURN n;"
             nodes_in_community = self.client.execute_py(node_query)
             nodes = set()
@@ -732,7 +725,6 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
                 node_properties = {k: v.cast() for k, v in node_data.properties().items()}
                 chunk_ids.update(node_properties.get("source_id", "").split(GRAPH_FIELD_SEP))
             
-                # 获取node连接的边, 处理成(src,tgt)的形式
                 edge_query = f"MATCH (n:{self.INIT_VERTEX_TYPE})-[:{self.INIT_EDGE_TYPE}]-(m:{self.INIT_VERTEX_TYPE}) WHERE id(n) == '{escape_bucket(node_id)}' RETURN m;"
                 edges_in_node = self.client.execute_py(edge_query)
                 for edge in edges_in_node.column_values("m"):
@@ -751,28 +743,25 @@ class NebulaGraphStorage(BaseGraphStorage,BaseKVStorage):
             levels[level].add(community_key)
             max_num_ids = max(max_num_ids, len(chunk_ids))
 
-        ordered_levels = sorted(levels.keys())  # 对层级进行排序
-        # 遍历排序后的层级，计算子社区
+        ordered_levels = sorted(levels.keys())
         for i, curr_level in enumerate(ordered_levels[:-1]):
-            next_level = ordered_levels[i + 1]  # 获取下一个层级
-            this_level_comms = levels[curr_level]  # 获取当前层级的社区
-            next_level_comms = levels[next_level]  # 获取下一个层级的社区
+            next_level = ordered_levels[i + 1]
+            this_level_comms = levels[curr_level]
+            next_level_comms = levels[next_level]
 
             for comm in this_level_comms:
-                # 遍历当前层级的社区，计算子社区
                 results[comm]["sub_communities"] = [
                     c
                     for c in next_level_comms
-                    if results[c]["nodes"].issubset(results[comm]["nodes"])  # 如果下一个层级的社区节点是当前层级社区节点的子集，则将其添加为子社区
+                    if results[c]["nodes"].issubset(results[comm]["nodes"])
                 ]
-
-        # 将集合类型的字段转换为列表，并计算社区的出现频率
+        
         for k, v in results.items():
             v["edges"] = list(v["edges"])
             v["edges"] = [list(e) for e in v["edges"]]
             v["nodes"] = list(v["nodes"])
             v["chunk_ids"] = list(v["chunk_ids"])
-            v["occurrence"] = len(v["chunk_ids"]) / max_num_ids  # 计算社区的出现频率
+            v["occurrence"] = len(v["chunk_ids"]) / max_num_ids
         return dict(results)
     
     async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:

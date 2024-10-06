@@ -63,10 +63,7 @@ def test_nebula_storage_init():
 def delete_all_data(nebula_graph_storage):
     """Delete all tags and edges from the Nebula Graph database."""
     TAG_NAMES = [nebula_graph_storage.INIT_VERTEX_TYPE, nebula_graph_storage.COMMUNITY_VERTEX_TYPE]
-    # EDGE_NAMES = [nebula_graph_storage.COMMUNITY_EDGE_TYPE, nebula_graph_storage.COMMUNITY_EDGE_TYPE]
 
-    # TAG_INDEXS = [idx['index_name'] for idx in nebula_graph_storage.INIT_VERTEX_INDEXES] + [idx['index_name'] for idx in nebula_graph_storage.COMMUNITY_VERTEX_INDEXES]
-    # EDGE_INDEXS =[idx['index_name'] for idx in nebula_graph_storage.INIT_EDGE_INDEXES] + [idx['index_name'] for idx in nebula_graph_storage.COMMUNITY_EDGE_INDEXES]
     try:
         for tag in TAG_NAMES:
             delete_query = f"LOOKUP ON {tag} YIELD id(vertex) AS ID | DELETE VERTEX  $-.ID WITH EDGE;"
@@ -147,7 +144,6 @@ async def test_upsert_and_get_edge(nebula_graph_storage):
     has_edge = await nebula_graph_storage.has_edge(source_id, target_id)
     assert has_edge is True
 
-    # 测试不存在的边
     non_existent_edge = await nebula_graph_storage.get_edge("non_existent1", "non_existent2")
     assert non_existent_edge is None
 
