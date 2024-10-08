@@ -135,7 +135,36 @@ class CombinedExtraction(dspy.Signature):
         desc="List of entity types used for extraction."
     )
     entities_relationships: list[Union[Entity, Relationship]] = dspy.OutputField(
-        desc="List of entities and relationships extracted from the text."
+        desc="List of entities and relationships extracted from the text and the entity types."
+    )
+
+
+class CritiqueCombinedExtraction(dspy.Signature):
+    input_text: str = dspy.InputField(
+        desc="The text to extract entities and relationships from."
+    )
+    entity_types: list[str] = dspy.InputField(
+        desc="List of entity types used for extraction."
+    )
+    current_entities_relationships: list[Union[Entity, Relationship]] = dspy.InputField(
+        desc="List of entities and relationships extracted from the text and the entity types."
+    )
+    critique: str = dspy.OutputField(desc="The critique of the current entities and relationships.")
+
+
+class RefineCombinedExtraction(dspy.Signature):
+    input_text: str = dspy.InputField(
+        desc="The text to extract entities and relationships from."
+    )
+    entity_types: list[str] = dspy.InputField(
+        desc="List of entity types used for extraction."
+    )
+    current_entities_relationships: list[Union[Entity, Relationship]] = dspy.InputField(
+        desc="List of entities and relationships extracted from the text and the entity types."
+    )
+    critique: str = dspy.InputField(desc="The critique of the current entities and relationships.")
+    refined_entities_relationships: list[Union[Entity, Relationship]] = dspy.OutputField(
+        desc="List of entities and relationships extracted from the text and the entity types, improved based on the critique and current entities and relationships."
     )
 
 
@@ -170,10 +199,11 @@ class TypedEntityRelationshipExtractor(dspy.Module):
         lm: dspy.LM = None,
         reasoning: dspy.OutputField = None,
         max_retries: int = 3,
+        entity_types: list[str] = ENTITY_TYPES
     ):
         super().__init__()
         self.lm = lm
-        self.entity_types = ENTITY_TYPES
+        self.entity_types = entity_types
         self.extractor = dspy.TypedChainOfThought(
             signature=CombinedExtraction, reasoning=reasoning, max_retries=max_retries
         )
@@ -211,3 +241,33 @@ class TypedEntityRelationshipExtractor(dspy.Module):
         ]
 
         return dspy.Prediction(entities=entities, relationships=relationships)
+
+
+
+class SelfRefineEntityRelationshipExtractor(dspy.Module):
+    def __init__(
+            self,         
+            lm: dspy.LM = None,
+            reasoning: dspy.OutputField = None,
+            max_retries: int = 3,
+            num_turns: int = 1,
+            entity_types: list[str] = ENTITY_TYPES
+        ):
+        super().__init__()
+        self.zero_shot = TypedEntityRelationshipExtractor(lm=lm, reasoning=reasoning, max_retries=max_retries)
+        self.critique = dspy.TypedChainOfThought(signature=CritiqueCombinedExtraction, max_retries=max_retries)
+        self.refine = dspy.TypedChainOfThought(signature=RefineCombinedExtraction, max_retries=max_retries)
+        self.num_turns = num_turns
+        self.entity_types = entity_types
+
+    def forward(self, input_text: str) -> dspy.Prediction:
+        current_entities_relationships = self.zero_shot(input_text=input_text)
+
+        for _ in range(self.num_turns):
+            critique = self.critique(input_text=input_text, entity_types=self.entity_types, current_entities_relationships=current_entities_relationships)
+            refined_entities_relationships = self.refine(
+                input_text=input_text, entity_types=self.entity_types, current_entities_relationships=current_entities_relationships, critique=critique.critique
+            )
+            current_entities_relationships = refined_entities_relationships
+
+        return dspy.Prediction(entities=current_entities_relationships.entities, relationships=current_entities_relationships.relationships)
