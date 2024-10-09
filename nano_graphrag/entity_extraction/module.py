@@ -1,4 +1,3 @@
-from typing import Union
 import dspy
 from pydantic import BaseModel, Field
 from nano_graphrag._utils import clean_str
@@ -134,8 +133,11 @@ class CombinedExtraction(dspy.Signature):
     entity_types: list[str] = dspy.InputField(
         desc="List of entity types used for extraction."
     )
-    entities_relationships: list[Union[Entity, Relationship]] = dspy.OutputField(
-        desc="List of entities and relationships extracted from the text and the entity types."
+    entities: list[Entity] = dspy.OutputField(
+        desc="List of entities extracted from the text and the entity types."
+    )
+    relationships: list[Relationship] = dspy.OutputField(
+        desc="List of relationships extracted from the text and the entity types."
     )
 
 
@@ -146,10 +148,14 @@ class CritiqueCombinedExtraction(dspy.Signature):
     entity_types: list[str] = dspy.InputField(
         desc="List of entity types used for extraction."
     )
-    current_entities_relationships: list[Union[Entity, Relationship]] = dspy.InputField(
-        desc="List of entities and relationships extracted from the text and the entity types."
+    current_entities: list[Entity] = dspy.InputField(
+        desc="List of entities extracted from the text and the entity types."
     )
-    critique: str = dspy.OutputField(desc="The critique of the current entities and relationships.")
+    current_relationships: list[Relationship] = dspy.InputField(
+        desc="List of relationships extracted from the text and the entity types."
+    )
+    entity_critique: str = dspy.OutputField(desc="The critique of the current entities.")
+    relationship_critique: str = dspy.OutputField(desc="The critique of the current relationships.")
 
 
 class RefineCombinedExtraction(dspy.Signature):
@@ -159,12 +165,19 @@ class RefineCombinedExtraction(dspy.Signature):
     entity_types: list[str] = dspy.InputField(
         desc="List of entity types used for extraction."
     )
-    current_entities_relationships: list[Union[Entity, Relationship]] = dspy.InputField(
-        desc="List of entities and relationships extracted from the text and the entity types."
+    current_entities: list[Entity] = dspy.InputField(
+        desc="List of entities extracted from the text and the entity types."
     )
-    critique: str = dspy.InputField(desc="The critique of the current entities and relationships.")
-    refined_entities_relationships: list[Union[Entity, Relationship]] = dspy.OutputField(
-        desc="List of entities and relationships extracted from the text and the entity types, improved based on the critique and current entities and relationships."
+    current_relationships: list[Relationship] = dspy.InputField(
+        desc="List of relationships extracted from the text and the entity types."
+    )
+    entity_critique: str = dspy.InputField(desc="The critique of the current entities.")
+    relationship_critique: str = dspy.InputField(desc="The critique of the current relationships.")
+    refined_entities: list[Entity] = dspy.OutputField(
+        desc="List of entities extracted from the text and the entity types, improved based on the critique and current entities."
+    )
+    refined_relationships: list[Relationship] = dspy.OutputField(
+        desc="List of relationships extracted from the text and the entity types, improved based on the critique and current relationships."
     )
 
 
@@ -188,7 +201,7 @@ class TypedEntityRelationshipExtractorException(dspy.Module):
 
         except Exception as e:
             if isinstance(e, self.exception_types):
-                return dspy.Prediction(entities_relationships=[])
+                return dspy.Prediction(entities=[], relationships=[])
 
             raise e
 
@@ -197,16 +210,13 @@ class TypedEntityRelationshipExtractor(dspy.Module):
     def __init__(
         self,
         lm: dspy.LM = None,
-        reasoning: dspy.OutputField = None,
         max_retries: int = 3,
         entity_types: list[str] = ENTITY_TYPES
     ):
         super().__init__()
         self.lm = lm
         self.entity_types = entity_types
-        self.extractor = dspy.TypedChainOfThought(
-            signature=CombinedExtraction, reasoning=reasoning, max_retries=max_retries
-        )
+        self.extractor = dspy.TypedChainOfThought(signature=CombinedExtraction, max_retries=max_retries)
         self.extractor = TypedEntityRelationshipExtractorException(
             self.extractor, exception_types=(ValueError,)
         )
@@ -224,8 +234,7 @@ class TypedEntityRelationshipExtractor(dspy.Module):
                 description=clean_str(entity.description),
                 importance_score=float(entity.importance_score),
             )
-            for entity in extraction_result.entities_relationships
-            if isinstance(entity, Entity)
+            for entity in extraction_result.entities
         ]
 
         relationships = [
@@ -236,38 +245,79 @@ class TypedEntityRelationshipExtractor(dspy.Module):
                 weight=float(relationship.weight),
                 order=int(relationship.order),
             )
-            for relationship in extraction_result.entities_relationships
-            if isinstance(relationship, Relationship)
+            for relationship in extraction_result.relationships
         ]
 
         return dspy.Prediction(entities=entities, relationships=relationships)
-
 
 
 class SelfRefineEntityRelationshipExtractor(dspy.Module):
     def __init__(
             self,         
             lm: dspy.LM = None,
-            reasoning: dspy.OutputField = None,
             max_retries: int = 3,
             num_turns: int = 1,
             entity_types: list[str] = ENTITY_TYPES
         ):
         super().__init__()
-        self.zero_shot = TypedEntityRelationshipExtractor(lm=lm, reasoning=reasoning, max_retries=max_retries)
-        self.critique = dspy.TypedChainOfThought(signature=CritiqueCombinedExtraction, max_retries=max_retries)
-        self.refine = dspy.TypedChainOfThought(signature=RefineCombinedExtraction, max_retries=max_retries)
+        self.lm = lm
+        self.zero_shot = dspy.TypedChainOfThought(
+            signature=CombinedExtraction, 
+            max_retries=max_retries
+        )
+        self.critique = dspy.TypedChainOfThought(
+            signature=CritiqueCombinedExtraction, 
+            max_retries=max_retries
+        )
+        self.refine =  dspy.TypedChainOfThought(
+            signature=RefineCombinedExtraction, 
+            max_retries=max_retries
+        )
         self.num_turns = num_turns
         self.entity_types = entity_types
 
     def forward(self, input_text: str) -> dspy.Prediction:
-        current_entities_relationships = self.zero_shot(input_text=input_text)
-
-        for _ in range(self.num_turns):
-            critique = self.critique(input_text=input_text, entity_types=self.entity_types, current_entities_relationships=current_entities_relationships)
-            refined_entities_relationships = self.refine(
-                input_text=input_text, entity_types=self.entity_types, current_entities_relationships=current_entities_relationships, critique=critique.critique
+        with dspy.context(lm=self.lm if self.lm is not None else dspy.settings.lm):
+            initial_result = self.zero_shot(input_text=input_text, entity_types=self.entity_types)
+            current_entities = initial_result.entities
+            current_relationships = initial_result.relationships
+            
+            for _ in range(self.num_turns):
+                critique_result = self.critique(
+                    input_text=input_text, 
+                    entity_types=self.entity_types, 
+                    current_entities=current_entities,
+                    current_relationships=current_relationships
+                )
+                refined_result = self.refine(
+                    input_text=input_text, 
+                    entity_types=self.entity_types, 
+                    current_entities=current_entities,
+                    current_relationships=current_relationships,
+                    entity_critique=critique_result.entity_critique,
+                    relationship_critique=critique_result.relationship_critique
+                )
+                current_entities = refined_result.refined_entities if refined_result.refined_entities else current_entities
+                current_relationships = refined_result.refined_relationships if refined_result.refined_relationships else current_relationships
+        
+        entities = [
+            dict(
+                entity_name=clean_str(entity.entity_name.upper()),
+                entity_type=clean_str(entity.entity_type.upper()),
+                description=clean_str(entity.description),
+                importance_score=float(entity.importance_score),
             )
-            current_entities_relationships = refined_entities_relationships
-
-        return dspy.Prediction(entities=current_entities_relationships.entities, relationships=current_entities_relationships.relationships)
+            for entity in current_entities
+        ]
+        relationships = [
+            dict(
+                src_id=clean_str(relationship.src_id.upper()),
+                tgt_id=clean_str(relationship.tgt_id.upper()),
+                description=clean_str(relationship.description),
+                weight=float(relationship.weight),
+                order=int(relationship.order),
+            )
+            for relationship in current_relationships
+        ]
+        return dspy.Prediction(entities=entities, relationships=relationships)
+    

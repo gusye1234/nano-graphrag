@@ -18,7 +18,7 @@ def test_entity_relationship_extractor():
         ]
 
         mock_extractor.return_value = dspy.Prediction(
-            entities_relationships=mock_entities + mock_relationships
+            entities=mock_entities, relationships=mock_relationships
         )
         
         extractor = TypedEntityRelationshipExtractor()

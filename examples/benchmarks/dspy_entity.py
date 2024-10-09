@@ -6,8 +6,10 @@ import logging
 import asyncio
 import time
 import shutil
+from nano_graphrag.entity_extraction.module import SelfRefineEntityRelationshipExtractor
 from nano_graphrag.entity_extraction.extract import extract_entities_dspy
-from nano_graphrag._storage import NetworkXStorage, BaseKVStorage
+from nano_graphrag.base import BaseKVStorage
+from nano_graphrag._storage import NetworkXStorage
 from nano_graphrag._utils import compute_mdhash_id, compute_args_hash
 from nano_graphrag._op import extract_entities
 
@@ -53,7 +55,7 @@ async def deepseepk_model_if_cache(
     return response.choices[0].message.content
 
 
-async def benchmark_entity_extraction(text: str, system_prompt: str, use_dspy: bool = False):
+async def benchmark_entity_extraction(text: str, system_prompt: str, entity_extractor: dspy.Module, use_dspy: bool = False):
     working_dir = os.path.join(WORKING_DIR, f"use_dspy={use_dspy}")
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
@@ -76,7 +78,7 @@ async def benchmark_entity_extraction(text: str, system_prompt: str, use_dspy: b
     chunks = {compute_mdhash_id(text, prefix="chunk-"): {"content": text}}
     
     if use_dspy:
-        graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config)
+        graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config, entity_extractor)
     else:
         graph_storage = await extract_entities(chunks, graph_storage, None, graph_storage.global_config)
     
@@ -112,8 +114,8 @@ async def run_benchmark(text: str):
         Think carefully.
     """
     system_prompt_dspy = f"{system_prompt} Time: {time.time()}."
-    lm = dspy.OpenAI(
-        model="deepseek-chat", 
+    lm = dspy.LM(
+        model="deepseek/deepseek-chat", 
         model_type="chat",
         api_provider="openai",
         api_key=os.environ["DEEPSEEK_API_KEY"], 
@@ -123,11 +125,11 @@ async def run_benchmark(text: str):
         max_tokens=8192
     )
     dspy.settings.configure(lm=lm, experimental=True)
-    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True)
+    entity_extractor = SelfRefineEntityRelationshipExtractor(num_turns=1)
+    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True, entity_extractor=entity_extractor)
     print(f"Execution time with DSPy-AI: {time_with_dspy:.2f} seconds")
     print_extraction_results(graph_storage_with_dspy)
 
-    import pdb; pdb.set_trace()
     print("Running benchmark without DSPy-AI:")
     system_prompt_no_dspy = f"{system_prompt} Time: {time.time()}."
     graph_storage_without_dspy, time_without_dspy = await benchmark_entity_extraction(text, system_prompt_no_dspy, use_dspy=False)
@@ -148,7 +150,7 @@ async def run_benchmark(text: str):
 
 
 if __name__ == "__main__":
-    with open("./examples/data/test.txt", encoding="utf-8-sig") as f:
+    with open("./tests/zhuyuanzhang.txt", encoding="utf-8-sig") as f:
         text = f.read()
 
     asyncio.run(run_benchmark(text=text))
