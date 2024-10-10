@@ -1,4 +1,5 @@
-# Main Takeaways
+# Chain Of Thought Prompting with DSPy-AI (v2.4.16)
+## Main Takeaways
 - Time difference: 156.99 seconds
 - Execution time with DSPy-AI: 304.38 seconds
 - Execution time without DSPy-AI: 147.39 seconds
@@ -6,7 +7,7 @@
 - Relationships extracted: 21 (without DSPy-AI) vs 36 (with DSPy-AI)
 
 
-# Results
+## Results
 ```markdown
 > python examples/benchmarks/dspy_entity.py
 
@@ -265,3 +266,11 @@ Relationships:
 - "朱元璋" -> "吴老太":
   "朱元璋曾希望托吴老太找一个媳妇，显示了他对家庭的渴望。"
 ```
+
+# Self-Refine with DSPy-AI (v2.5.6)
+## Main Takeaways
+- Time difference: 66.24 seconds
+- Execution time with DSPy-AI: 211.04 seconds
+- Execution time without DSPy-AI: 144.80 seconds
+- Entities extracted: 38 (without DSPy-AI) vs 16 (with DSPy-AI)
+- Relationships extracted: 38 (without DSPy-AI) vs 16 (with DSPy-AI)

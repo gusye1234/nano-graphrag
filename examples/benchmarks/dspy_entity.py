@@ -6,7 +6,6 @@ import logging
 import asyncio
 import time
 import shutil
-from nano_graphrag.entity_extraction.module import SelfRefineEntityRelationshipExtractor
 from nano_graphrag.entity_extraction.extract import extract_entities_dspy
 from nano_graphrag.base import BaseKVStorage
 from nano_graphrag._storage import NetworkXStorage
@@ -55,7 +54,7 @@ async def deepseepk_model_if_cache(
     return response.choices[0].message.content
 
 
-async def benchmark_entity_extraction(text: str, system_prompt: str, entity_extractor: dspy.Module, use_dspy: bool = False):
+async def benchmark_entity_extraction(text: str, system_prompt: str, use_dspy: bool = False):
     working_dir = os.path.join(WORKING_DIR, f"use_dspy={use_dspy}")
     if os.path.exists(working_dir):
         shutil.rmtree(working_dir)
@@ -78,7 +77,7 @@ async def benchmark_entity_extraction(text: str, system_prompt: str, entity_extr
     chunks = {compute_mdhash_id(text, prefix="chunk-"): {"content": text}}
     
     if use_dspy:
-        graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config, entity_extractor)
+        graph_storage = await extract_entities_dspy(chunks, graph_storage, None, graph_storage.global_config)
     else:
         graph_storage = await extract_entities(chunks, graph_storage, None, graph_storage.global_config)
     
@@ -108,10 +107,8 @@ def print_extraction_results(graph_storage: NetworkXStorage):
 async def run_benchmark(text: str):
     print("\nRunning benchmark with DSPy-AI:")
     system_prompt = """
-        You are a world-class AI system, capable of complex rationale and reflection. 
-        Reason through the query, and then provide your final response. 
-        If you detect that you made a mistake in your rationale at any point, correct yourself.
-        Think carefully.
+    You are an expert system specialized in entity and relationship extraction from complex texts. 
+    Your task is to thoroughly analyze the given text and extract all relevant entities and their relationships with utmost precision and completeness.
     """
     system_prompt_dspy = f"{system_prompt} Time: {time.time()}."
     lm = dspy.LM(
@@ -125,8 +122,7 @@ async def run_benchmark(text: str):
         max_tokens=8192
     )
     dspy.settings.configure(lm=lm, experimental=True)
-    entity_extractor = SelfRefineEntityRelationshipExtractor(num_turns=1)
-    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True, entity_extractor=entity_extractor)
+    graph_storage_with_dspy, time_with_dspy = await benchmark_entity_extraction(text, system_prompt_dspy, use_dspy=True)
     print(f"Execution time with DSPy-AI: {time_with_dspy:.2f} seconds")
     print_extraction_results(graph_storage_with_dspy)
 

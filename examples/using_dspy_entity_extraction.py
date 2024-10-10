@@ -130,19 +130,12 @@ def query():
 
 
 if __name__ == "__main__":
-    system_prompt = """
-        You are a world-class AI system, capable of complex rationale and reflection. 
-        Reason through the query, and then provide your final response. 
-        If you detect that you made a mistake in your rationale at any point, correct yourself.
-        Think carefully.
-    """
-    lm = dspy.OpenAI(
-        model="deepseek-chat", 
+    lm = dspy.LM(
+        model="deepseek/deepseek-chat", 
         model_type="chat",
         api_provider="openai",
         api_key=os.environ["DEEPSEEK_API_KEY"], 
         base_url=os.environ["DEEPSEEK_BASE_URL"], 
-        system_prompt=system_prompt, 
         temperature=1.0,
         max_tokens=8192
     )
