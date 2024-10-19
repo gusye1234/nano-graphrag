@@ -1,4 +1,5 @@
 import setuptools
+from setuptools import find_packages
 
 with open("readme.md", "r") as fh:
     long_description = fh.read()
@@ -28,7 +29,7 @@ setuptools.setup(
     description="A simple, easy-to-hack GraphRAG implementation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    packages=["nano_graphrag"],
+    packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
