@@ -366,9 +366,9 @@ You can refer to `nano_graphrag.base` to see detailed interfaces for each compon
 
 
 
-## FQA
+## FAQ
 
-Check [FQA](./docs/FAQ.md).
+Check [FAQ](./docs/FAQ.md).
 
 
 
