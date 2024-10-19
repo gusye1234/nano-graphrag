@@ -202,6 +202,9 @@ def list_of_list_to_csv(data: list[list]):
         ]
     )
 
+def get_workdir_last_folder_name(workdir: str) -> str:
+    return os.path.basename(os.path.normpath(workdir))
+
 
 # -----------------------------------------------------------------------------------
 # Refer the utils functions of the official GraphRAG implementation:
