@@ -1,13 +1,12 @@
 import unittest
-from loguru import logger
+# from loguru import logger
 from nano_graphrag._utils import convert_response_to_json  
 
 class TestJSONExtraction(unittest.TestCase):
 
     def setUp(self):
         """Set up runs before each test case."""
-        logger.remove()  
-        logger.add(lambda msg: None) # disallow output
+        ...
 
     def test_standard_json(self):
         """Test standard JSON extraction."""
