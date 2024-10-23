@@ -90,8 +90,8 @@ class Neo4jStorage(BaseGraphStorage):
     async def node_degree(self, node_id: str) -> int:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (n:{self.namespace}) WHERE n.id = $node_id "
-                f"RETURN COUNT {{(n)-[]-(:{self.namespace})}} AS degree",
+                f"MATCH (n:{self.namespace} {{id: $node_id}}) "
+                "RETURN size((n)--()) AS degree",
                 node_id=node_id,
             )
             record = await result.single()
@@ -100,9 +100,9 @@ class Neo4jStorage(BaseGraphStorage):
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (s:{self.namespace}), (t:{self.namespace}) "
+                f"MATCH (s:{self.namespace})-[r1]-(), (t:{self.namespace})-[r2]-() "  # `(s)-[r1]-()` 匹配节点 s 连接的所有关系
                 "WHERE s.id = $src_id AND t.id = $tgt_id "
-                f"RETURN COUNT {{(s)-[]-(:{self.namespace})}} + COUNT {{(t)-[]-(:{self.namespace})}} AS degree",
+                "RETURN SIZE(COLLECT(r1)) + SIZE(COLLECT(r2)) AS degree",
                 src_id=src_id,
                 tgt_id=tgt_id,
             )
