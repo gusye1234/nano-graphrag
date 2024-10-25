@@ -1,4 +1,4 @@
-1. Install [Neo4j](https://neo4j.com/docs/operations-manual/current/installation/)
+1. Install [Neo4j](https://neo4j.com/docs/operations-manual/current/installation/) (please use 5.x version)
 2. Install Neo4j GDS (graph data science) [plugin](https://neo4j.com/docs/graph-data-science/current/installation/neo4j-server/)
 3. Start neo4j server
 4. Get the `NEO4J_URL`,  `NEO4J_USER` and `NEO4J_PASSWORD`
