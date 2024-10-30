@@ -295,7 +295,7 @@ class GraphRAG:
             logger.info("[Entity Extraction]...")
             maybe_new_kg = await self.entity_extraction_func(
                 inserting_chunks,
-                knwoledge_graph_inst=self.chunk_entity_relation_graph,
+                knowledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,
                 global_config=asdict(self),
             )
