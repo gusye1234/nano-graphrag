@@ -397,6 +397,7 @@ See [ROADMAP.md](./docs/ROADMAP.md)
 
 - [Medical Graph RAG](https://github.com/MedicineToken/Medical-Graph-RAG): Graph RAG for the Medical Data
 - [LightRAG](https://github.com/HKUDS/LightRAG): Simple and Fast Retrieval-Augmented Generation
+- [fast-graphrag](https://github.com/circlemind-ai/fast-graphrag): RAG that intelligently adapts to your use case, data, and queries
 
 > Welcome to pull requests if your project uses `nano-graphrag`, it will help others to trust this repo❤️
 
