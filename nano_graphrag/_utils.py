@@ -1,6 +1,6 @@
 import asyncio
 import html
-import json
+import json5
 import logging
 import os
 import re
@@ -45,8 +45,8 @@ def extract_first_complete_json(s: str):
                     first_json_str = s[first_json_start:i+1]
                     try:
                         # Attempt to parse the JSON string
-                        return json.loads(first_json_str.replace("\n", ""))
-                    except json.JSONDecodeError as e:
+                        return json5.loads(first_json_str.replace("\n", ""))
+                    except json5.JSONDecodeError as e:
                         logger.error(f"JSON decoding failed: {e}. Attempted string: {first_json_str[:50]}...")
                         return None
                     finally:
@@ -151,14 +151,14 @@ def compute_mdhash_id(content, prefix: str = ""):
 
 def write_json(json_obj, file_name):
     with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(json_obj, f, indent=2, ensure_ascii=False)
+        json5.dump(json_obj, f, indent=2, ensure_ascii=False)
 
 
 def load_json(file_name):
     if not os.path.exists(file_name):
         return None
     with open(file_name, encoding="utf-8") as f:
-        return json.load(f)
+        return json5.load(f)
 
 
 # it's dirty to type, so it's a good way to have fun

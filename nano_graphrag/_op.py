@@ -1,5 +1,5 @@
 import re
-import json
+import json5
 import asyncio
 import tiktoken
 from typing import Union
@@ -680,7 +680,7 @@ async def _find_most_related_community_from_entities(
     for node_d in node_datas:
         if "clusters" not in node_d:
             continue
-        related_communities.extend(json.loads(node_d["clusters"]))
+        related_communities.extend(json5.loads(node_d["clusters"]))
     related_community_dup_keys = [
         str(dp["cluster"])
         for dp in related_communities
