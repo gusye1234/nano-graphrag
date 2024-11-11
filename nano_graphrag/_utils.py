@@ -1,6 +1,7 @@
 import asyncio
 import html
 import json5
+import json
 import logging
 import os
 import re
@@ -45,8 +46,8 @@ def extract_first_complete_json(s: str):
                     first_json_str = s[first_json_start:i+1]
                     try:
                         # Attempt to parse the JSON string
-                        return json5.loads(first_json_str.replace("\n", ""))
-                    except json5.JSONDecodeError as e:
+                        return json.loads(first_json_str.replace("\n", ""))
+                    except json.JSONDecodeError as e:
                         logger.error(f"JSON decoding failed: {e}. Attempted string: {first_json_str[:50]}...")
                         return None
                     finally:
