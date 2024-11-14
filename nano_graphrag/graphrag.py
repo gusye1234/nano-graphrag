@@ -9,6 +9,10 @@ import tiktoken
 
 
 from ._llm import (
+    amazon_bedrock_embedding,
+    claude_3_5_haiku_complete,
+    claude_3_sonnet_complete,
+    claude_3_haiku_complete,
     gpt_4o_complete,
     gpt_4o_mini_complete,
     openai_embedding,
@@ -107,6 +111,7 @@ class GraphRAG:
 
     # LLM
     using_azure_openai: bool = False
+    using_amazon_bedrock: bool = False
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
     best_model_max_async: int = 16
@@ -143,6 +148,14 @@ class GraphRAG:
                 self.embedding_func = azure_openai_embedding
             logger.info(
                 "Switched the default openai funcs to Azure OpenAI if you didn't set any of it"
+            )
+
+        if self.using_amazon_bedrock:
+            self.best_model_func = claude_3_sonnet_complete
+            self.cheap_model_func = claude_3_haiku_complete
+            self.embedding_func = amazon_bedrock_embedding
+            logger.info(
+                "Switched the default openai funcs to Amazon Bedrock"
             )
 
         if not os.path.exists(self.working_dir) and self.always_create_working_dir:
@@ -298,6 +311,7 @@ class GraphRAG:
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,
                 global_config=asdict(self),
+                using_amazon_bedrock=self.using_amazon_bedrock,
             )
             if maybe_new_kg is None:
                 logger.warning("No new entities found")

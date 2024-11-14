@@ -293,6 +293,7 @@ async def extract_entities(
     knwoledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     global_config: dict,
+    using_amazon_bedrock: bool=False,
 ) -> Union[BaseGraphStorage, None]:
     use_llm_func: callable = global_config["best_model_func"]
     entity_extract_max_gleaning = global_config["entity_extract_max_gleaning"]
@@ -320,12 +321,14 @@ async def extract_entities(
         content = chunk_dp["content"]
         hint_prompt = entity_extract_prompt.format(**context_base, input_text=content)
         final_result = await use_llm_func(hint_prompt)
+        if isinstance(final_result, list):
+            final_result = final_result[0]["text"]
 
-        history = pack_user_ass_to_openai_messages(hint_prompt, final_result)
+        history = pack_user_ass_to_openai_messages(hint_prompt, final_result, using_amazon_bedrock)
         for now_glean_index in range(entity_extract_max_gleaning):
             glean_result = await use_llm_func(continue_prompt, history_messages=history)
 
-            history += pack_user_ass_to_openai_messages(continue_prompt, glean_result)
+            history += pack_user_ass_to_openai_messages(continue_prompt, glean_result, using_amazon_bedrock)
             final_result += glean_result
             if now_glean_index == entity_extract_max_gleaning - 1:
                 break
