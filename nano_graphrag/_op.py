@@ -786,10 +786,17 @@ async def _find_most_related_edges_from_entities(
     all_related_edges = await asyncio.gather(
         *[knowledge_graph_inst.get_node_edges(dp["entity_name"]) for dp in node_datas]
     )
-    all_edges = set()
+    
+    all_edges = []
+    seen = set()
+    
     for this_edges in all_related_edges:
-        all_edges.update([tuple(sorted(e)) for e in this_edges])
-    all_edges = list(all_edges)
+        for e in this_edges:
+            sorted_edge = tuple(sorted(e))
+            if sorted_edge not in seen:
+                seen.add(sorted_edge)
+                all_edges.append(sorted_edge) 
+                
     all_edges_pack = await asyncio.gather(
         *[knowledge_graph_inst.get_edge(e[0], e[1]) for e in all_edges]
     )
