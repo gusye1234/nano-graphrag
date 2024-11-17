@@ -9,3 +9,7 @@ xxhash
 tenacity
 dspy-ai
 neo4j
+pymilvus
+redis
+nebula3-python
+ng_nx

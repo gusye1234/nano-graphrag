@@ -122,6 +122,7 @@ class GraphRAG:
     vector_db_storage_cls: Type[BaseVectorStorage] = NanoVectorDBStorage
     vector_db_storage_cls_kwargs: dict = field(default_factory=dict)
     graph_storage_cls: Type[BaseGraphStorage] = NetworkXStorage
+    community_report_storage_cls: Type[BaseKVStorage] = JsonKVStorage
     enable_llm_cache: bool = True
 
     # extension
@@ -165,7 +166,7 @@ class GraphRAG:
             else None
         )
 
-        self.community_reports = self.key_string_value_json_storage_cls(
+        self.community_reports = self.community_report_storage_cls(
             namespace="community_reports", global_config=asdict(self)
         )
         self.chunk_entity_relation_graph = self.graph_storage_cls(
