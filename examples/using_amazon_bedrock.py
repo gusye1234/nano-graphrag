@@ -1,6 +1,11 @@
 from nano_graphrag import GraphRAG, QueryParam
 
-graph_func = GraphRAG(working_dir="./bedrock_example", using_amazon_bedrock=True)
+graph_func = GraphRAG(
+    working_dir="../bedrock_example",
+    using_amazon_bedrock=True,
+    best_model_id="us.anthropic.claude-3-sonnet-20240229-v1:0",
+    cheap_model_id="us.anthropic.claude-3-haiku-20240307-v1:0",
+)
 
 with open("../tests/mock_data.txt") as f:
     graph_func.insert(f.read())

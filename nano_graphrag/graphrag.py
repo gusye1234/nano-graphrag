@@ -10,9 +10,7 @@ import tiktoken
 
 from ._llm import (
     amazon_bedrock_embedding,
-    claude_3_5_haiku_complete,
-    claude_3_sonnet_complete,
-    claude_3_haiku_complete,
+    create_amazon_bedrock_complete_function,
     gpt_4o_complete,
     gpt_4o_mini_complete,
     openai_embedding,
@@ -112,6 +110,8 @@ class GraphRAG:
     # LLM
     using_azure_openai: bool = False
     using_amazon_bedrock: bool = False
+    best_model_id: str = "us.anthropic.claude-3-sonnet-20240229-v1:0"
+    cheap_model_id: str = "us.anthropic.claude-3-haiku-20240307-v1:0"
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
     best_model_max_async: int = 16
@@ -151,8 +151,8 @@ class GraphRAG:
             )
 
         if self.using_amazon_bedrock:
-            self.best_model_func = claude_3_sonnet_complete
-            self.cheap_model_func = claude_3_haiku_complete
+            self.best_model_func = create_amazon_bedrock_complete_function(self.best_model_id)
+            self.cheap_model_func = create_amazon_bedrock_complete_function(self.cheap_model_id)
             self.embedding_func = amazon_bedrock_embedding
             logger.info(
                 "Switched the default openai funcs to Amazon Bedrock"

@@ -1,5 +1,6 @@
 import json
 import numpy as np
+from typing import Optional, List, Any, Callable
 
 import aioboto3
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
@@ -123,64 +124,34 @@ async def amazon_bedrock_complete_if_cache(
     return response["output"]["message"]["content"][0]["text"]
 
 
-async def claude_3_5_haiku_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await amazon_bedrock_complete_if_cache(
-        "us.anthropic.claude-3-5-haiku-20241022-v1:0",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
+def create_amazon_bedrock_complete_function(model_id: str) -> Callable:
+    """
+    Factory function to dynamically create completion functions for Amazon Bedrock
 
+    Args:
+        model_id (str): Amazon Bedrock model identifier (e.g., "us.anthropic.claude-3-sonnet-20240229-v1:0")
 
-async def claude_3_5_sonnet_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await amazon_bedrock_complete_if_cache(
-        "us.anthropic.claude-3-5-sonnet-20240620-v1:0",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
-
-
-async def claude_3_5_sonnet_v2_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await amazon_bedrock_complete_if_cache(
-        "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
-
-
-async def claude_3_haiku_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await amazon_bedrock_complete_if_cache(
-        "us.anthropic.claude-3-haiku-20240307-v1:0",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
-
-
-async def claude_3_sonnet_complete(
-    prompt, system_prompt=None, history_messages=[], **kwargs
-) -> str:
-    return await amazon_bedrock_complete_if_cache(
-        "us.anthropic.claude-3-sonnet-20240229-v1:0",
-        prompt,
-        system_prompt=system_prompt,
-        history_messages=history_messages,
-        **kwargs,
-    )
+    Returns:
+        Callable: Generated completion function
+    """
+    async def bedrock_complete(
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history_messages: List[Any] = [],
+        **kwargs
+    ) -> str:
+        return await amazon_bedrock_complete_if_cache(
+            model_id,
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            **kwargs
+        )
+    
+    # Set function name for easier debugging
+    bedrock_complete.__name__ = f"{model_id}_complete"
+    
+    return bedrock_complete
 
 
 async def gpt_4o_complete(
