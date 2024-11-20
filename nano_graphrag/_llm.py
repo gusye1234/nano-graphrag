@@ -38,9 +38,6 @@ def get_azure_openai_async_client_instance():
 def get_amazon_bedrock_async_client_instance():
     global global_amazon_bedrock_async_client
     if global_amazon_bedrock_async_client is None:
-        #global_amazon_bedrock_async_client = aioboto3.Session().client(
-        #    service_name="bedrock-runtime", region_name=os.getenv("AWS_REGION", "us-east-1")
-        #)
         global_amazon_bedrock_async_client = aioboto3.Session()
     return global_amazon_bedrock_async_client
 
