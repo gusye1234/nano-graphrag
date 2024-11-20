@@ -135,6 +135,30 @@ async def claude_3_5_haiku_complete(
     )
 
 
+async def claude_3_5_sonnet_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    return await amazon_bedrock_complete_if_cache(
+        "us.anthropic.claude-3-5-sonnet-20240620-v1:0",
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
+
+
+async def claude_3_5_sonnet_v2_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    return await amazon_bedrock_complete_if_cache(
+        "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
+
+
 async def claude_3_haiku_complete(
     prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
