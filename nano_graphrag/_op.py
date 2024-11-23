@@ -193,16 +193,16 @@ async def _handle_single_relationship_extraction(
 async def _merge_nodes_then_upsert(
     entity_name: str,
     nodes_data: list[dict],
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
-    already_entitiy_types = []
+    already_entity_types = []
     already_source_ids = []
     already_description = []
 
-    already_node = await knwoledge_graph_inst.get_node(entity_name)
+    already_node = await knowledge_graph_inst.get_node(entity_name)
     if already_node is not None:
-        already_entitiy_types.append(already_node["entity_type"])
+        already_entity_types.append(already_node["entity_type"])
         already_source_ids.extend(
             split_string_by_multi_markers(already_node["source_id"], [GRAPH_FIELD_SEP])
         )
@@ -210,7 +210,7 @@ async def _merge_nodes_then_upsert(
 
     entity_type = sorted(
         Counter(
-            [dp["entity_type"] for dp in nodes_data] + already_entitiy_types
+            [dp["entity_type"] for dp in nodes_data] + already_entity_types
         ).items(),
         key=lambda x: x[1],
         reverse=True,
@@ -229,7 +229,7 @@ async def _merge_nodes_then_upsert(
         description=description,
         source_id=source_id,
     )
-    await knwoledge_graph_inst.upsert_node(
+    await knowledge_graph_inst.upsert_node(
         entity_name,
         node_data=node_data,
     )
@@ -241,15 +241,15 @@ async def _merge_edges_then_upsert(
     src_id: str,
     tgt_id: str,
     edges_data: list[dict],
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
     already_weights = []
     already_source_ids = []
     already_description = []
     already_order = []
-    if await knwoledge_graph_inst.has_edge(src_id, tgt_id):
-        already_edge = await knwoledge_graph_inst.get_edge(src_id, tgt_id)
+    if await knowledge_graph_inst.has_edge(src_id, tgt_id):
+        already_edge = await knowledge_graph_inst.get_edge(src_id, tgt_id)
         already_weights.append(already_edge["weight"])
         already_source_ids.extend(
             split_string_by_multi_markers(already_edge["source_id"], [GRAPH_FIELD_SEP])
@@ -267,8 +267,8 @@ async def _merge_edges_then_upsert(
         set([dp["source_id"] for dp in edges_data] + already_source_ids)
     )
     for need_insert_id in [src_id, tgt_id]:
-        if not (await knwoledge_graph_inst.has_node(need_insert_id)):
-            await knwoledge_graph_inst.upsert_node(
+        if not (await knowledge_graph_inst.has_node(need_insert_id)):
+            await knowledge_graph_inst.upsert_node(
                 need_insert_id,
                 node_data={
                     "source_id": source_id,
@@ -279,7 +279,7 @@ async def _merge_edges_then_upsert(
     description = await _handle_entity_relation_summary(
         (src_id, tgt_id), description, global_config
     )
-    await knwoledge_graph_inst.upsert_edge(
+    await knowledge_graph_inst.upsert_edge(
         src_id,
         tgt_id,
         edge_data=dict(
@@ -290,7 +290,7 @@ async def _merge_edges_then_upsert(
 
 async def extract_entities(
     chunks: dict[str, TextChunkSchema],
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     global_config: dict,
     using_amazon_bedrock: bool=False,
@@ -397,13 +397,13 @@ async def extract_entities(
             maybe_edges[tuple(sorted(k))].extend(v)
     all_entities_data = await asyncio.gather(
         *[
-            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
+            _merge_nodes_then_upsert(k, v, knowledge_graph_inst, global_config)
             for k, v in maybe_nodes.items()
         ]
     )
     await asyncio.gather(
         *[
-            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config)
+            _merge_edges_then_upsert(k[0], k[1], v, knowledge_graph_inst, global_config)
             for k, v in maybe_edges.items()
         ]
     )
@@ -419,7 +419,7 @@ async def extract_entities(
             for dp in all_entities_data
         }
         await entity_vdb.upsert(data_for_vdb)
-    return knwoledge_graph_inst
+    return knowledge_graph_inst
 
 
 def _pack_single_community_by_sub_communities(
@@ -466,7 +466,7 @@ def _pack_single_community_by_sub_communities(
 
 
 async def _pack_single_community_describe(
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     community: SingleCommunitySchema,
     max_token_size: int = 12000,
     already_reports: dict[str, CommunitySchema] = {},
@@ -476,10 +476,10 @@ async def _pack_single_community_describe(
     edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
 
     nodes_data = await asyncio.gather(
-        *[knwoledge_graph_inst.get_node(n) for n in nodes_in_order]
+        *[knowledge_graph_inst.get_node(n) for n in nodes_in_order]
     )
     edges_data = await asyncio.gather(
-        *[knwoledge_graph_inst.get_edge(src, tgt) for src, tgt in edges_in_order]
+        *[knowledge_graph_inst.get_edge(src, tgt) for src, tgt in edges_in_order]
     )
     node_fields = ["id", "entity", "type", "description", "degree"]
     edge_fields = ["id", "source", "target", "description", "rank"]
@@ -489,7 +489,7 @@ async def _pack_single_community_describe(
             node_name,
             node_data.get("entity_type", "UNKNOWN"),
             node_data.get("description", "UNKNOWN"),
-            await knwoledge_graph_inst.node_degree(node_name),
+            await knowledge_graph_inst.node_degree(node_name),
         ]
         for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
     ]
@@ -503,7 +503,7 @@ async def _pack_single_community_describe(
             edge_name[0],
             edge_name[1],
             edge_data.get("description", "UNKNOWN"),
-            await knwoledge_graph_inst.edge_degree(*edge_name),
+            await knowledge_graph_inst.edge_degree(*edge_name),
         ]
         for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
     ]
@@ -596,7 +596,7 @@ def _community_report_json_to_str(parsed_output: dict) -> str:
 
 async def generate_community_report(
     community_report_kv: BaseKVStorage[CommunitySchema],
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     global_config: dict,
 ):
     llm_extra_kwargs = global_config["special_community_report_llm_kwargs"]
@@ -607,7 +607,7 @@ async def generate_community_report(
 
     community_report_prompt = PROMPTS["community_report"]
 
-    communities_schema = await knwoledge_graph_inst.community_schema()
+    communities_schema = await knowledge_graph_inst.community_schema()
     community_keys, community_values = list(communities_schema.keys()), list(
         communities_schema.values()
     )
@@ -618,7 +618,7 @@ async def generate_community_report(
     ):
         nonlocal already_processed
         describe = await _pack_single_community_describe(
-            knwoledge_graph_inst,
+            knowledge_graph_inst,
             community,
             max_token_size=global_config["best_model_max_token_size"],
             already_reports=already_reports,

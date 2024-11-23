@@ -80,7 +80,7 @@ async def generate_dataset(
 
 async def extract_entities_dspy(
     chunks: dict[str, TextChunkSchema],
-    knwoledge_graph_inst: BaseGraphStorage,
+    knowledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
     global_config: dict,
 ) -> Union[BaseGraphStorage, None]:
@@ -145,13 +145,13 @@ async def extract_entities_dspy(
             maybe_edges[k].extend(v)
     all_entities_data = await asyncio.gather(
         *[
-            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
+            _merge_nodes_then_upsert(k, v, knowledge_graph_inst, global_config)
             for k, v in maybe_nodes.items()
         ]
     )
     await asyncio.gather(
         *[
-            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config)
+            _merge_edges_then_upsert(k[0], k[1], v, knowledge_graph_inst, global_config)
             for k, v in maybe_edges.items()
         ]
     )
@@ -168,4 +168,4 @@ async def extract_entities_dspy(
         }
         await entity_vdb.upsert(data_for_vdb)
 
-    return knwoledge_graph_inst
+    return knowledge_graph_inst
