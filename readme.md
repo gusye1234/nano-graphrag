@@ -74,6 +74,9 @@ pip install nano-graphrag
 > If you're using Azure OpenAI API, refer to the [.env.example](./.env.example.azure) to set your azure openai. Then pass `GraphRAG(...,using_azure_openai=True,...)` to enable.
 
 > [!TIP]
+> If you're using Amazon Bedrock API, please ensure your credentials are properly set through commands like `aws configure`. Then enable it by configuring like this: `GraphRAG(...,using_amazon_bedrock=True, best_model_id="us.anthropic.claude-3-sonnet-20240229-v1:0", cheap_model_id="us.anthropic.claude-3-haiku-20240307-v1:0",...)`. Refer to an [example script](./examples/using_amazon_bedrock.py).
+
+> [!TIP]
 >
 > If you don't have any key, check out this [example](./examples/no_openai_key_at_all.py) that using `transformers` and `ollama` . If you like to use another LLM or Embedding Model, check [Advances](#Advances).
 
@@ -167,9 +170,11 @@ Below are the components you can use:
 | Type            |                             What                             |                       Where                       |
 | :-------------- | :----------------------------------------------------------: | :-----------------------------------------------: |
 | LLM             |                            OpenAI                            |                     Built-in                      |
+|                 |                        Amazon Bedrock                        |                     Built-in                      |
 |                 |                           DeepSeek                           |              [examples](./examples)               |
 |                 |                           `ollama`                           |              [examples](./examples)               |
 | Embedding       |                            OpenAI                            |                     Built-in                      |
+|                 |                        Amazon Bedrock                        |                     Built-in                      |
 |                 |                    Sentence-transformers                     |              [examples](./examples)               |
 | Vector DataBase | [`nano-vectordb`](https://github.com/gusye1234/nano-vectordb) |                     Built-in                      |
 |                 |        [`hnswlib`](https://github.com/nmslib/hnswlib)        |         Built-in, [examples](./examples)          |

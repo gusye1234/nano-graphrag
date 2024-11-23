@@ -162,11 +162,17 @@ def load_json(file_name):
 
 
 # it's dirty to type, so it's a good way to have fun
-def pack_user_ass_to_openai_messages(*args: str):
-    roles = ["user", "assistant"]
-    return [
-        {"role": roles[i % 2], "content": content} for i, content in enumerate(args)
-    ]
+def pack_user_ass_to_openai_messages(prompt: str, generated_content: str, using_amazon_bedrock: bool):
+    if using_amazon_bedrock:
+        return [
+            {"role": "user", "content": [{"text": prompt}]},
+            {"role": "assistant", "content": [{"text": generated_content}]},
+        ]
+    else:
+        return [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": generated_content},
+        ]
 
 
 def is_float_regex(value):
