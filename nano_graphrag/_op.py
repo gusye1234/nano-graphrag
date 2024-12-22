@@ -1,42 +1,45 @@
-import re
-import json
 import asyncio
-import tiktoken
+from collections import Counter
+from collections import defaultdict
+import json
+import re
 from typing import Union
-from collections import Counter, defaultdict
+
+import tiktoken
+
 from ._splitter import SeparatorSplitter
-from ._utils import (
-    logger,
-    clean_str,
-    compute_mdhash_id,
-    decode_tokens_by_tiktoken,
-    encode_string_by_tiktoken,
-    is_float_regex,
-    list_of_list_to_csv,
-    pack_user_ass_to_openai_messages,
-    split_string_by_multi_markers,
-    truncate_list_by_token_size,
-)
-from .base import (
-    BaseGraphStorage,
-    BaseKVStorage,
-    BaseVectorStorage,
-    SingleCommunitySchema,
-    CommunitySchema,
-    TextChunkSchema,
-    QueryParam,
-)
-from .prompt import GRAPH_FIELD_SEP, PROMPTS
+from ._utils import clean_str
+from ._utils import compute_mdhash_id
+from ._utils import decode_tokens_by_tiktoken
+from ._utils import encode_string_by_tiktoken
+from ._utils import is_float_regex
+from ._utils import list_of_list_to_csv
+from ._utils import logger
+from ._utils import pack_user_ass_to_openai_messages
+from ._utils import split_string_by_multi_markers
+from ._utils import truncate_list_by_token_size
+from .base import BaseGraphStorage
+from .base import BaseKVStorage
+from .base import BaseVectorStorage
+from .base import CommunitySchema
+from .base import QueryParam
+from .base import SingleCommunitySchema
+from .base import TextChunkSchema
+from .prompt import GRAPH_FIELD_SEP
+from .prompt import PROMPTS
 
 
 def chunking_by_token_size(
-    tokens_list: list[list[int]],
-    doc_keys,
-    tiktoken_model,
+    new_docs: dict[str, dict],
     overlap_token_size=128,
     max_token_size=1024,
 ):
+    new_docs_list = list(new_docs.items())
+    docs = [new_doc[1]["content"] for new_doc in new_docs_list]
+    doc_keys = [new_doc[0] for new_doc in new_docs_list]
 
+    ENCODER = tiktoken.encoding_for_model("gpt-4o")
+    tokens_list = ENCODER.encode_batch(docs, num_threads=16)
     results = []
     for index, tokens in enumerate(tokens_list):
         chunk_token = []
@@ -47,7 +50,7 @@ def chunking_by_token_size(
             lengths.append(min(max_token_size, len(tokens) - start))
 
         # here somehow tricky, since the whole chunk tokens is list[list[list[int]]] for corpus(doc(chunk)),so it can't be decode entirely
-        chunk_token = tiktoken_model.decode_batch(chunk_token)
+        chunk_token = ENCODER.decode_batch(chunk_token)
         for i, chunk in enumerate(chunk_token):
 
             results.append(
@@ -63,16 +66,20 @@ def chunking_by_token_size(
 
 
 def chunking_by_seperators(
-    tokens_list: list[list[int]],
-    doc_keys,
-    tiktoken_model,
+    new_docs: dict[str, dict],
     overlap_token_size=128,
     max_token_size=1024,
 ):
+    new_docs_list = list(new_docs.items())
+    docs = [new_doc[1]["content"] for new_doc in new_docs_list]
+    doc_keys = [new_doc[0] for new_doc in new_docs_list]
+
+    ENCODER = tiktoken.encoding_for_model("gpt-4o")
+    tokens_list = ENCODER.encode_batch(docs, num_threads=16)
 
     splitter = SeparatorSplitter(
         separators=[
-            tiktoken_model.encode(s) for s in PROMPTS["default_text_separator"]
+            ENCODER.encode(s) for s in PROMPTS["default_text_separator"]
         ],
         chunk_size=max_token_size,
         chunk_overlap=overlap_token_size,
@@ -83,7 +90,7 @@ def chunking_by_seperators(
         lengths = [len(c) for c in chunk_token]
 
         # here somehow tricky, since the whole chunk tokens is list[list[list[int]]] for corpus(doc(chunk)),so it can't be decode entirely
-        chunk_token = tiktoken_model.decode_batch(chunk_token)
+        chunk_token = ENCODER.decode_batch(chunk_token)
         for i, chunk in enumerate(chunk_token):
 
             results.append(
@@ -98,17 +105,9 @@ def chunking_by_seperators(
     return results
 
 
-def get_chunks(new_docs, chunk_func=chunking_by_token_size, **chunk_func_params):
+def get_chunks(new_docs: dict[str, dict], chunk_func=chunking_by_token_size, **chunk_func_params):
     inserting_chunks = {}
-
-    new_docs_list = list(new_docs.items())
-    docs = [new_doc[1]["content"] for new_doc in new_docs_list]
-    doc_keys = [new_doc[0] for new_doc in new_docs_list]
-
-    ENCODER = tiktoken.encoding_for_model("gpt-4o")
-    tokens = ENCODER.encode_batch(docs, num_threads=16)
-    chunks = chunk_func(
-        tokens, doc_keys=doc_keys, tiktoken_model=ENCODER, **chunk_func_params
+    chunks = chunk_func(new_docs, **chunk_func_params
     )
 
     for chunk in chunks:
@@ -789,17 +788,17 @@ async def _find_most_related_edges_from_entities(
     all_related_edges = await asyncio.gather(
         *[knowledge_graph_inst.get_node_edges(dp["entity_name"]) for dp in node_datas]
     )
-    
+
     all_edges = []
     seen = set()
-    
+
     for this_edges in all_related_edges:
         for e in this_edges:
             sorted_edge = tuple(sorted(e))
             if sorted_edge not in seen:
                 seen.add(sorted_edge)
-                all_edges.append(sorted_edge) 
-                
+                all_edges.append(sorted_edge)
+
     all_edges_pack = await asyncio.gather(
         *[knowledge_graph_inst.get_edge(e[0], e[1]) for e in all_edges]
     )
