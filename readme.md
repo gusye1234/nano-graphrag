@@ -46,6 +46,8 @@
 
 
 
+> If you're looking for a multi-user RAG solution for long-term user memory, have a look at this project: [memobase](https://github.com/memodb-io/memobase) :)
+
 ## Install
 
 **Install from source** (recommend)
