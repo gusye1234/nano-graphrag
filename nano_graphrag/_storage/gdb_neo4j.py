@@ -12,7 +12,7 @@ neo4j_lock = asyncio.Lock()
 
 
 def make_path_idable(path):
-    return path.replace(".", "_").replace("/", "__").replace("-", "_")
+    return path.replace(".", "_").replace("/", "__").replace("-", "_").replace(":", "_")
 
 
 @dataclass
@@ -69,7 +69,7 @@ class Neo4jStorage(BaseGraphStorage):
     async def has_node(self, node_id: str) -> bool:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (n:{self.namespace}) WHERE n.id = $node_id RETURN COUNT(n) > 0 AS exists",
+                f"MATCH (n:`{self.namespace}`) WHERE n.id = $node_id RETURN COUNT(n) > 0 AS exists",
                 node_id=node_id,
             )
             record = await result.single()
@@ -78,7 +78,7 @@ class Neo4jStorage(BaseGraphStorage):
     async def has_edge(self, source_node_id: str, target_node_id: str) -> bool:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (s:{self.namespace})-[r]->(t:{self.namespace}) "
+                f"MATCH (s:`{self.namespace}`)-[r]->(t:`{self.namespace}`) "
                 "WHERE s.id = $source_id AND t.id = $target_id "
                 "RETURN COUNT(r) > 0 AS exists",
                 source_id=source_node_id,
@@ -90,8 +90,8 @@ class Neo4jStorage(BaseGraphStorage):
     async def node_degree(self, node_id: str) -> int:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (n:{self.namespace}) WHERE n.id = $node_id "
-                f"RETURN COUNT {{(n)-[]-(:{self.namespace})}} AS degree",
+                f"MATCH (n:`{self.namespace}`) WHERE n.id = $node_id "
+                f"RETURN COUNT {{(n)-[]-(:`{self.namespace}`)}} AS degree",
                 node_id=node_id,
             )
             record = await result.single()
@@ -100,9 +100,9 @@ class Neo4jStorage(BaseGraphStorage):
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (s:{self.namespace}), (t:{self.namespace}) "
+                f"MATCH (s:`{self.namespace}`), (t:`{self.namespace}`) "
                 "WHERE s.id = $src_id AND t.id = $tgt_id "
-                f"RETURN COUNT {{(s)-[]-(:{self.namespace})}} + COUNT {{(t)-[]-(:{self.namespace})}} AS degree",
+                f"RETURN COUNT {{(s)-[]-(:`{self.namespace}`)}} + COUNT {{(t)-[]-(:`{self.namespace}`)}} AS degree",
                 src_id=src_id,
                 tgt_id=tgt_id,
             )
@@ -112,7 +112,7 @@ class Neo4jStorage(BaseGraphStorage):
     async def get_node(self, node_id: str) -> Union[dict, None]:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (n:{self.namespace}) WHERE n.id = $node_id RETURN properties(n) AS node_data",
+                f"MATCH (n:`{self.namespace}`) WHERE n.id = $node_id RETURN properties(n) AS node_data",
                 node_id=node_id,
             )
             record = await result.single()
@@ -137,7 +137,7 @@ class Neo4jStorage(BaseGraphStorage):
     ) -> Union[dict, None]:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (s:{self.namespace})-[r]->(t:{self.namespace}) "
+                f"MATCH (s:`{self.namespace}`)-[r]->(t:`{self.namespace}`) "
                 "WHERE s.id = $source_id AND t.id = $target_id "
                 "RETURN properties(r) AS edge_data",
                 source_id=source_node_id,
@@ -151,7 +151,7 @@ class Neo4jStorage(BaseGraphStorage):
     ) -> Union[list[tuple[str, str]], None]:
         async with self.async_driver.session() as session:
             result = await session.run(
-                f"MATCH (s:{self.namespace})-[r]->(t:{self.namespace}) WHERE s.id = $source_id "
+                f"MATCH (s:`{self.namespace}`)-[r]->(t:`{self.namespace}`) WHERE s.id = $source_id "
                 "RETURN s.id AS source, t.id AS target",
                 source_id=source_node_id,
             )
@@ -164,7 +164,7 @@ class Neo4jStorage(BaseGraphStorage):
         node_type = node_data.get("entity_type", "UNKNOWN").strip('"')
         async with self.async_driver.session() as session:
             await session.run(
-                f"MERGE (n:{self.namespace}:{node_type} {{id: $node_id}}) "
+                f"MERGE (n:`{self.namespace}`:`{node_type}` {{id: $node_id}}) "
                 "SET n += $node_data",
                 node_id=node_id,
                 node_data=node_data,
@@ -176,7 +176,7 @@ class Neo4jStorage(BaseGraphStorage):
         edge_data.setdefault("weight", 0.0)
         async with self.async_driver.session() as session:
             await session.run(
-                f"MATCH (s:{self.namespace}), (t:{self.namespace}) "
+                f"MATCH (s:`{self.namespace}`), (t:`{self.namespace}`) "
                 "WHERE s.id = $source_id AND t.id = $target_id "
                 "MERGE (s)-[r:RELATED]->(t) "  # Added relationship type 'RELATED'
                 "SET r += $edge_data",
@@ -257,8 +257,8 @@ class Neo4jStorage(BaseGraphStorage):
             # Fetch community data
             result = await session.run(
                 f"""
-                MATCH (n:{self.namespace})
-                WITH n, n.communityIds AS communityIds, [(n)-[]-(m:{self.namespace}) | m.id] AS connected_nodes
+                MATCH (n:`{self.namespace}`)
+                WITH n, n.communityIds AS communityIds, [(n)-[]-(m:`{self.namespace}`) | m.id] AS connected_nodes
                 RETURN n.id AS node_id, n.source_id AS source_id, 
                        communityIds AS cluster_key,
                        connected_nodes
@@ -317,10 +317,10 @@ class Neo4jStorage(BaseGraphStorage):
         async with self.async_driver.session() as session:
             try:
                 # Delete all relationships in the namespace
-                await session.run(f"MATCH (n:{self.namespace})-[r]-() DELETE r")
+                await session.run(f"MATCH (n:`{self.namespace}`)-[r]-() DELETE r")
 
                 # Delete all nodes in the namespace
-                await session.run(f"MATCH (n:{self.namespace}) DELETE n")
+                await session.run(f"MATCH (n:`{self.namespace}`) DELETE n")
 
                 logger.info(
                     f"All nodes and edges in namespace '{self.namespace}' have been deleted."
