@@ -35,7 +35,7 @@ class AssessRelationships(dspy.Signature):
 def relationships_similarity_metric(
     gold: dspy.Example, pred: dspy.Prediction, trace=None
 ) -> float:
-    model = dspy.TypedChainOfThought(AssessRelationships)
+    model = dspy.ChainOfThought(AssessRelationships)
     gold_relationships = [Relationship(**item) for item in gold["relationships"]]
     predicted_relationships = [Relationship(**item) for item in pred["relationships"]]
     similarity_score = float(

@@ -265,27 +265,27 @@ class TypedEntityRelationshipExtractor(dspy.Module):
         max_retries: int = 3,
         entity_types: list[str] = ENTITY_TYPES,
         self_refine: bool = False,
-        num_refine_turns: int = 1
+        num_refine_turns: int = 1,
     ):
         super().__init__()
         self.lm = lm
         self.entity_types = entity_types
         self.self_refine = self_refine
         self.num_refine_turns = num_refine_turns
-        
-        self.extractor = dspy.TypedChainOfThought(signature=CombinedExtraction, max_retries=max_retries)
+
+        self.extractor = dspy.ChainOfThought(
+            signature=CombinedExtraction, max_retries=max_retries
+        )
         self.extractor = TypedEntityRelationshipExtractorException(
             self.extractor, exception_types=(ValueError,)
         )
-        
+
         if self.self_refine:
-            self.critique = dspy.TypedChainOfThought(
-                signature=CritiqueCombinedExtraction, 
-                max_retries=max_retries
+            self.critique = dspy.ChainOfThought(
+                signature=CritiqueCombinedExtraction, max_retries=max_retries
             )
-            self.refine = dspy.TypedChainOfThought(
-                signature=RefineCombinedExtraction, 
-                max_retries=max_retries
+            self.refine = dspy.ChainOfThought(
+                signature=RefineCombinedExtraction, max_retries=max_retries
             )
 
     def forward(self, input_text: str) -> dspy.Prediction:
@@ -293,32 +293,38 @@ class TypedEntityRelationshipExtractor(dspy.Module):
             extraction_result = self.extractor(
                 input_text=input_text, entity_types=self.entity_types
             )
-            
+
             current_entities: list[Entity] = extraction_result.entities
             current_relationships: list[Relationship] = extraction_result.relationships
-            
+
             if self.self_refine:
                 for _ in range(self.num_refine_turns):
                     critique_result = self.critique(
-                        input_text=input_text, 
-                        entity_types=self.entity_types, 
+                        input_text=input_text,
+                        entity_types=self.entity_types,
                         current_entities=current_entities,
-                        current_relationships=current_relationships
+                        current_relationships=current_relationships,
                     )
                     refined_result = self.refine(
-                        input_text=input_text, 
-                        entity_types=self.entity_types, 
+                        input_text=input_text,
+                        entity_types=self.entity_types,
                         current_entities=current_entities,
                         current_relationships=current_relationships,
                         entity_critique=critique_result.entity_critique,
-                        relationship_critique=critique_result.relationship_critique
+                        relationship_critique=critique_result.relationship_critique,
                     )
-                    logger.debug(f"entities: {len(current_entities)} | refined_entities: {len(refined_result.refined_entities)}")
-                    logger.debug(f"relationships: {len(current_relationships)} | refined_relationships: {len(refined_result.refined_relationships)}")
+                    logger.debug(
+                        f"entities: {len(current_entities)} | refined_entities: {len(refined_result.refined_entities)}"
+                    )
+                    logger.debug(
+                        f"relationships: {len(current_relationships)} | refined_relationships: {len(refined_result.refined_relationships)}"
+                    )
                     current_entities = refined_result.refined_entities
                     current_relationships = refined_result.refined_relationships
 
         entities = [entity.to_dict() for entity in current_entities]
-        relationships = [relationship.to_dict() for relationship in current_relationships]
+        relationships = [
+            relationship.to_dict() for relationship in current_relationships
+        ]
 
         return dspy.Prediction(entities=entities, relationships=relationships)
