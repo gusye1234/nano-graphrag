@@ -1,8 +1,8 @@
 import unittest
-from typing import List
-import tiktoken
-from nano_graphrag._splitter import SeparatorSplitter
+
+
 from nano_graphrag._op import chunking_by_seperators
+from nano_graphrag._splitter import SeparatorSplitter
 
 # Assuming the SeparatorSplitter class is already imported
 
@@ -57,11 +57,12 @@ class TestSeparatorSplitter(unittest.TestCase):
         self.assertEqual(result, expected)
 
     def test_chunking_by_seperators(self):
-        encoder = tiktoken.encoding_for_model("gpt-4o")
         text = "This is a test.\nAnother test."
-        tokens_list = [encoder.encode(text)]
-        doc_keys = ["doc1"]
-        results = chunking_by_seperators(tokens_list, doc_keys, encoder)
+        new_docs = {
+            "doc1": {
+                "content": text,
+            }}
+        results = chunking_by_seperators(new_docs)
         assert len(results) == 1
         assert results[0]["chunk_order_index"] == 0
         assert results[0]["full_doc_id"] == "doc1"
