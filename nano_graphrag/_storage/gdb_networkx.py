@@ -3,9 +3,10 @@ import json
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Union, cast
+from typing import Any, Union, cast, List
 import networkx as nx
 import numpy as np
+import asyncio
 
 from .._utils import logger
 from ..base import (
@@ -104,34 +105,63 @@ class NetworkXStorage(BaseGraphStorage):
 
     async def get_node(self, node_id: str) -> Union[dict, None]:
         return self._graph.nodes.get(node_id)
+    
+    async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, Union[dict, None]]:
+        return await asyncio.gather(*[self.get_node(node_id) for node_id in node_ids])
 
     async def node_degree(self, node_id: str) -> int:
         # [numberchiffre]: node_id not part of graph returns `DegreeView({})` instead of 0
         return self._graph.degree(node_id) if self._graph.has_node(node_id) else 0
+
+    async def node_degrees_batch(self, node_ids: List[str]) -> List[str]:
+        return await asyncio.gather(*[self.node_degree(node_id) for node_id in node_ids])
 
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         return (self._graph.degree(src_id) if self._graph.has_node(src_id) else 0) + (
             self._graph.degree(tgt_id) if self._graph.has_node(tgt_id) else 0
         )
 
+    async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> list[int]:
+        return await asyncio.gather(*[self.edge_degree(src_id, tgt_id) for src_id, tgt_id in edge_pairs])
+
     async def get_edge(
         self, source_node_id: str, target_node_id: str
     ) -> Union[dict, None]:
         return self._graph.edges.get((source_node_id, target_node_id))
+
+    async def get_edges_batch(
+        self, edge_pairs: list[tuple[str, str]]
+    ) -> list[Union[dict, None]]:
+        return await asyncio.gather(*[self.get_edge(source_node_id, target_node_id) for source_node_id, target_node_id in edge_pairs])
 
     async def get_node_edges(self, source_node_id: str):
         if self._graph.has_node(source_node_id):
             return list(self._graph.edges(source_node_id))
         return None
 
+    async def get_nodes_edges_batch(
+        self, node_ids: list[str]
+    ) -> list[list[tuple[str, str]]]:
+        return await asyncio.gather(*[self.get_node_edges(node_id) for node_id
+        in node_ids])
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
         self._graph.add_node(node_id, **node_data)
+
+    async def upsert_nodes_batch(self, nodes_data: list[tuple[str, dict[str, str]]]):
+        await asyncio.gather(*[self.upsert_node(node_id, node_data) for node_id, node_data in nodes_data])
 
     async def upsert_edge(
         self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
     ):
         self._graph.add_edge(source_node_id, target_node_id, **edge_data)
 
+    async def upsert_edges_batch(
+        self, edges_data: list[tuple[str, str, dict[str, str]]]
+    ):
+        await asyncio.gather(*[self.upsert_edge(source_node_id, target_node_id, edge_data) 
+                for source_node_id, target_node_id, edge_data in edges_data])
+        
     async def clustering(self, algorithm: str):
         if algorithm not in self._clustering_algorithms:
             raise ValueError(f"Clustering algorithm {algorithm} not supported")
