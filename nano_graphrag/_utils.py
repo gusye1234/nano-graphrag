@@ -14,6 +14,7 @@ import numpy as np
 import tiktoken
 
 logger = logging.getLogger("nano-graphrag")
+logging.getLogger("neo4j").setLevel(logging.ERROR)
 ENCODER = None
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:

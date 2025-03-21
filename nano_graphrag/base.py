@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TypedDict, Union, Literal, Generic, TypeVar
+from typing import TypedDict, Union, Literal, Generic, TypeVar, List
 
 import numpy as np
 
@@ -123,11 +123,20 @@ class BaseGraphStorage(StorageNameSpace):
 
     async def node_degree(self, node_id: str) -> int:
         raise NotImplementedError
+    
+    async def node_degrees_batch(self, node_ids: List[str]) -> List[str]:
+        raise NotImplementedError
 
     async def edge_degree(self, src_id: str, tgt_id: str) -> int:
         raise NotImplementedError
 
+    async def edge_degrees_batch(self, edge_pairs: list[tuple[str, str]]) -> list[int]:
+        raise NotImplementedError
+
     async def get_node(self, node_id: str) -> Union[dict, None]:
+        raise NotImplementedError
+
+    async def get_nodes_batch(self, node_ids: list[str]) -> dict[str, Union[dict, None]]:
         raise NotImplementedError
 
     async def get_edge(
@@ -135,16 +144,34 @@ class BaseGraphStorage(StorageNameSpace):
     ) -> Union[dict, None]:
         raise NotImplementedError
 
+    async def get_edges_batch(
+        self, edge_pairs: list[tuple[str, str]]
+    ) -> list[Union[dict, None]]:
+        raise NotImplementedError
+
     async def get_node_edges(
         self, source_node_id: str
     ) -> Union[list[tuple[str, str]], None]:
         raise NotImplementedError
 
+    async def get_nodes_edges_batch(
+        self, node_ids: list[str]
+    ) -> list[list[tuple[str, str]]]:
+        raise NotImplementedError
+
     async def upsert_node(self, node_id: str, node_data: dict[str, str]):
+        raise NotImplementedError
+
+    async def upsert_nodes_batch(self, nodes_data: list[tuple[str, dict[str, str]]]):
         raise NotImplementedError
 
     async def upsert_edge(
         self, source_node_id: str, target_node_id: str, edge_data: dict[str, str]
+    ):
+        raise NotImplementedError
+
+    async def upsert_edges_batch(
+        self, edges_data: list[tuple[str, str, dict[str, str]]]
     ):
         raise NotImplementedError
 

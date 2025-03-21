@@ -483,13 +483,14 @@ async def _pack_single_community_describe(
     )
     node_fields = ["id", "entity", "type", "description", "degree"]
     edge_fields = ["id", "source", "target", "description", "rank"]
+    node_degrees = await knwoledge_graph_inst.node_degrees_batch(nodes_in_order)
     nodes_list_data = [
         [
             i,
             node_name,
             node_data.get("entity_type", "UNKNOWN"),
             node_data.get("description", "UNKNOWN"),
-            await knwoledge_graph_inst.node_degree(node_name),
+            node_degrees[i],
         ]
         for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
     ]
@@ -497,13 +498,14 @@ async def _pack_single_community_describe(
     nodes_may_truncate_list_data = truncate_list_by_token_size(
         nodes_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
+    edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order)
     edges_list_data = [
         [
             i,
             edge_name[0],
             edge_name[1],
             edge_data.get("description", "UNKNOWN"),
-            await knwoledge_graph_inst.edge_degree(*edge_name),
+            edge_degrees[i]
         ]
         for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
     ]
@@ -730,18 +732,14 @@ async def _find_most_related_text_unit_from_entities(
         split_string_by_multi_markers(dp["source_id"], [GRAPH_FIELD_SEP])
         for dp in node_datas
     ]
-    edges = await asyncio.gather(
-        *[knowledge_graph_inst.get_node_edges(dp["entity_name"]) for dp in node_datas]
-    )
+    edges = await knowledge_graph_inst.get_nodes_edges_batch([dp["entity_name"] for dp in node_datas])
     all_one_hop_nodes = set()
     for this_edges in edges:
         if not this_edges:
             continue
         all_one_hop_nodes.update([e[1] for e in this_edges])
     all_one_hop_nodes = list(all_one_hop_nodes)
-    all_one_hop_nodes_data = await asyncio.gather(
-        *[knowledge_graph_inst.get_node(e) for e in all_one_hop_nodes]
-    )
+    all_one_hop_nodes_data = await knowledge_graph_inst.get_nodes_batch(all_one_hop_nodes)
     all_one_hop_text_units_lookup = {
         k: set(split_string_by_multi_markers(v["source_id"], [GRAPH_FIELD_SEP]))
         for k, v in zip(all_one_hop_nodes, all_one_hop_nodes_data)
@@ -786,9 +784,7 @@ async def _find_most_related_edges_from_entities(
     query_param: QueryParam,
     knowledge_graph_inst: BaseGraphStorage,
 ):
-    all_related_edges = await asyncio.gather(
-        *[knowledge_graph_inst.get_node_edges(dp["entity_name"]) for dp in node_datas]
-    )
+    all_related_edges = await knowledge_graph_inst.get_nodes_edges_batch([dp["entity_name"] for dp in node_datas])
     
     all_edges = []
     seen = set()
@@ -800,12 +796,8 @@ async def _find_most_related_edges_from_entities(
                 seen.add(sorted_edge)
                 all_edges.append(sorted_edge) 
                 
-    all_edges_pack = await asyncio.gather(
-        *[knowledge_graph_inst.get_edge(e[0], e[1]) for e in all_edges]
-    )
-    all_edges_degree = await asyncio.gather(
-        *[knowledge_graph_inst.edge_degree(e[0], e[1]) for e in all_edges]
-    )
+    all_edges_pack = await knowledge_graph_inst.get_edges_batch(all_edges)
+    all_edges_degree = await knowledge_graph_inst.edge_degrees_batch(all_edges)
     all_edges_data = [
         {"src_tgt": k, "rank": d, **v}
         for k, v, d in zip(all_edges, all_edges_pack, all_edges_degree)
@@ -833,14 +825,10 @@ async def _build_local_query_context(
     results = await entities_vdb.query(query, top_k=query_param.top_k)
     if not len(results):
         return None
-    node_datas = await asyncio.gather(
-        *[knowledge_graph_inst.get_node(r["entity_name"]) for r in results]
-    )
+    node_datas = await knowledge_graph_inst.get_nodes_batch([r["entity_name"] for r in results])
     if not all([n is not None for n in node_datas]):
         logger.warning("Some nodes are missing, maybe the storage is damaged")
-    node_degrees = await asyncio.gather(
-        *[knowledge_graph_inst.node_degree(r["entity_name"]) for r in results]
-    )
+    node_degrees = await knowledge_graph_inst.node_degrees_batch([r["entity_name"] for r in results])
     node_datas = [
         {**n, "entity_name": k["entity_name"], "rank": d}
         for k, n, d in zip(results, node_datas, node_degrees)
