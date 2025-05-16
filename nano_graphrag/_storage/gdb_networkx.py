@@ -95,7 +95,14 @@ class NetworkXStorage(BaseGraphStorage):
         }
 
     async def index_done_callback(self):
-        NetworkXStorage.write_nx_graph(self._graph, self._graphml_xml_file)
+        loop = asyncio.get_running_loop()
+        # run the blocking method in the default ThreadPoolExecutor
+        await loop.run_in_executor(
+            None,
+            NetworkXStorage.write_nx_graph,
+            self._graph,
+            self._graphml_xml_file
+        )
 
     async def has_node(self, node_id: str) -> bool:
         return self._graph.has_node(node_id)
