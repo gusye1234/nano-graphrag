@@ -134,6 +134,30 @@ def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
     return content
 
 
+def truncate_list_by_token_size_all(list_data: list, max_token_size: int):
+    """Truncate a list of data by token size"""
+    if max_token_size <= 0:
+        return []
+
+    tokens = 0
+    result = []
+
+    for i, item in enumerate(list_data):
+        # 将当前行转为字符串并拼接 tab 和换行符
+        line = "\t".join(str(field) for field in item) + ("\n" if i < len(list_data) - 1 else "")
+
+        # 编码并统计 token 数量
+        token_count = len(encode_string_by_tiktoken(line))
+
+        if tokens + token_count > max_token_size:
+            break
+
+        tokens += token_count
+        result.append(item)
+
+    return result
+
+
 def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
     """Truncate a list of data by token size"""
     if max_token_size <= 0:

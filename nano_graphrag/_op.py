@@ -16,6 +16,7 @@ from ._utils import (
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     truncate_list_by_token_size,
+    truncate_list_by_token_size_all,
 )
 from .base import (
     BaseGraphStorage,
@@ -495,7 +496,7 @@ async def _pack_single_community_describe(
         for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
     ]
     nodes_list_data = sorted(nodes_list_data, key=lambda x: x[-1], reverse=True)
-    nodes_may_truncate_list_data = truncate_list_by_token_size(
+    nodes_may_truncate_list_data = truncate_list_by_token_size_all(
         nodes_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
     edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order)
@@ -510,7 +511,7 @@ async def _pack_single_community_describe(
         for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
     ]
     edges_list_data = sorted(edges_list_data, key=lambda x: x[-1], reverse=True)
-    edges_may_truncate_list_data = truncate_list_by_token_size(
+    edges_may_truncate_list_data = truncate_list_by_token_size_all(
         edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
     )
 
@@ -548,12 +549,12 @@ async def _pack_single_community_describe(
             e for e in edges_list_data if (e[1], e[2]) in contain_edges
         ]
         # if report size is bigger than max_token_size, nodes and edges are []
-        nodes_may_truncate_list_data = truncate_list_by_token_size(
+        nodes_may_truncate_list_data = truncate_list_by_token_size_all(
             report_exclude_nodes_list_data + report_include_nodes_list_data,
             key=lambda x: x[3],
             max_token_size=(max_token_size - report_size) // 2,
         )
-        edges_may_truncate_list_data = truncate_list_by_token_size(
+        edges_may_truncate_list_data = truncate_list_by_token_size_all(
             report_exclude_edges_list_data + report_include_edges_list_data,
             key=lambda x: x[3],
             max_token_size=(max_token_size - report_size) // 2,
