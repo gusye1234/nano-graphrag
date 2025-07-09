@@ -28,6 +28,7 @@ async def mock_embedding(texts: list[str]) -> np.ndarray:
 
 @pytest.fixture
 def memgraph_storage(memgraph_config):
+    """Create a memgraph storage instance"""
     rag = GraphRAG(
         working_dir="./tests/memgraph_test",
         embedding_func=mock_embedding,
@@ -39,26 +40,40 @@ def memgraph_storage(memgraph_config):
 
 
 def reset_graph(func):
+    """Decorator to reset graph state before and after test"""
     @wraps(func)
     async def new_func(memgraph_storage):
-        await memgraph_storage._debug_delete_all_node_edges()
+        # Initialize and clean before test
         await memgraph_storage.index_start_callback()
-        results = await func(memgraph_storage)
         await memgraph_storage._debug_delete_all_node_edges()
+        
+        # Run the test
+        results = await func(memgraph_storage)
+        
+        # Clean up after test
+        try:
+            await memgraph_storage._debug_delete_all_node_edges()
+        except:
+            pass  # Ignore cleanup errors
+            
         return results
-
     return new_func
 
 
 def test_memgraph_storage_init():
+    print("🧪 Starting memgraph storage init test...")
     rag = GraphRAG(
         working_dir="./tests/memgraph_test",
         embedding_func=mock_embedding,
     )
+    print("✅ GraphRAG created without Memgraph")
+    
     with pytest.raises(ValueError):
+        print("🔧 Testing MemgraphStorage without config...")
         storage = MemgraphStorage(
             namespace="nanographrag_test", global_config=rag.__dict__
         )
+    print("✅ Test completed successfully")
 
 
 @pytest.mark.asyncio
