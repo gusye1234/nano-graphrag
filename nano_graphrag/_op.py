@@ -31,7 +31,7 @@ from .prompt import GRAPH_FIELD_SEP, PROMPTS
 def chunking_by_token_size(
     tokens_list: list[list[int]],
     doc_keys,
-    tokenizer_wrapper: TokenizerWrapper, # *** 修改 ***: 明确类型
+    tokenizer_wrapper: TokenizerWrapper, 
     overlap_token_size=128,
     max_token_size=1024,
 ):
@@ -43,7 +43,7 @@ def chunking_by_token_size(
             chunk_token.append(tokens[start : start + max_token_size])
             lengths.append(min(max_token_size, len(tokens) - start))
 
-        # *** 修改 ***: 直接使用 wrapper 解码
+
         chunk_texts = tokenizer_wrapper.decode_batch(chunk_token)
 
         for i, chunk in enumerate(chunk_texts):
@@ -77,7 +77,7 @@ def chunking_by_seperators(
     for index, tokens in enumerate(tokens_list):
         chunk_tokens = splitter.split_tokens(tokens)
         lengths = [len(c) for c in chunk_tokens]
-        # *** 修改 ***: 直接使用 wrapper 解码
+
         decoded_chunks = tokenizer_wrapper.decode_batch(chunk_tokens)
         for i, chunk in enumerate(decoded_chunks):
             results.append(
@@ -418,8 +418,8 @@ def _pack_single_community_by_sub_communities(
     community: SingleCommunitySchema,
     max_token_size: int,
     already_reports: dict[str, CommunitySchema],
-    tokenizer_wrapper: TokenizerWrapper, # +++ 新增 +++
-) -> tuple[str, int, set, set]: # *** 修改 ***: 返回类型更精确
+    tokenizer_wrapper: TokenizerWrapper,
+) -> tuple[str, int, set, set]: 
     all_sub_communities = [
         already_reports[k] for k in community["sub_communities"] if k in already_reports
     ]
@@ -452,7 +452,7 @@ def _pack_single_community_by_sub_communities(
         already_nodes.extend(c["nodes"])
         already_edges.extend([tuple(e) for e in c["edges"]])
     
-    # *** 修改 ***: 直接使用 wrapper 编码
+
     return (
         sub_communities_describe,
         len(tokenizer_wrapper.encode(sub_communities_describe)),
@@ -596,13 +596,6 @@ async def _pack_single_community_describe(
         entities=nodes_describe,
         relationships=edges_describe
     )
-    # len(tokenizer_wrapper.encode(nodes_describe))
-    
-    # len(tokenizer_wrapper.encode(edges_describe))
-    
-    final_tokens = len(tokenizer_wrapper.encode(final_output))
-    if final_tokens > max_token_size:
-        breakpoint()
 
     return final_output
 
