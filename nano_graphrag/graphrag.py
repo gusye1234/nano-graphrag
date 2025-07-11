@@ -5,7 +5,6 @@ from datetime import datetime
 from functools import partial
 from typing import Callable, Dict, List, Optional, Type, Union, cast
 
-import tiktoken
 
 
 from ._llm import (
@@ -39,6 +38,7 @@ from ._utils import (
     convert_response_to_json,
     always_get_an_event_loop,
     logger,
+    TokenizerWrapper,
 )
 from .base import (
     BaseGraphStorage,
@@ -59,11 +59,14 @@ class GraphRAG:
     enable_naive_rag: bool = False
 
     # text chunking
+    tokenizer_type: str = "tiktoken"  # or 'huggingface'
+    tiktoken_model_name: str = "gpt-4o"
+    huggingface_model_name: str = "bert-base-uncased"  # default HF model
     chunk_func: Callable[
         [
             list[list[int]],
             List[str],
-            tiktoken.Encoding,
+            TokenizerWrapper,
             Optional[int],
             Optional[int],
         ],
@@ -71,7 +74,7 @@ class GraphRAG:
     ] = chunking_by_token_size
     chunk_token_size: int = 1200
     chunk_overlap_token_size: int = 100
-    tiktoken_model_name: str = "gpt-4o"
+    
 
     # entity extraction
     entity_extract_max_gleaning: int = 1
@@ -137,6 +140,11 @@ class GraphRAG:
     def __post_init__(self):
         _print_config = ",\n  ".join([f"{k} = {v}" for k, v in asdict(self).items()])
         logger.debug(f"GraphRAG init with param:\n\n  {_print_config}\n")
+
+        self.tokenizer_wrapper = TokenizerWrapper(
+            tokenizer_type=self.tokenizer_type,
+            model_name=self.tiktoken_model_name if self.tokenizer_type == "tiktoken" else self.huggingface_model_name
+        )
 
         if self.using_azure_openai:
             # If there's no OpenAI API key, use Azure OpenAI
@@ -215,6 +223,8 @@ class GraphRAG:
             partial(self.cheap_model_func, hashing_kv=self.llm_response_cache)
         )
 
+
+
     def insert(self, string_or_strings):
         loop = always_get_an_event_loop()
         return loop.run_until_complete(self.ainsert(string_or_strings))
@@ -236,6 +246,7 @@ class GraphRAG:
                 self.community_reports,
                 self.text_chunks,
                 param,
+                self.tokenizer_wrapper,
                 asdict(self),
             )
         elif param.mode == "global":
@@ -246,6 +257,7 @@ class GraphRAG:
                 self.community_reports,
                 self.text_chunks,
                 param,
+                self.tokenizer_wrapper,
                 asdict(self),
             )
         elif param.mode == "naive":
@@ -254,6 +266,7 @@ class GraphRAG:
                 self.chunks_vdb,
                 self.text_chunks,
                 param,
+                self.tokenizer_wrapper,
                 asdict(self),
             )
         else:
@@ -285,6 +298,7 @@ class GraphRAG:
                 chunk_func=self.chunk_func,
                 overlap_token_size=self.chunk_overlap_token_size,
                 max_token_size=self.chunk_token_size,
+                tokenizer_wrapper=self.tokenizer_wrapper,
             )
 
             _add_chunk_keys = await self.text_chunks.filter_keys(
@@ -301,7 +315,7 @@ class GraphRAG:
                 logger.info("Insert chunks for naive RAG")
                 await self.chunks_vdb.upsert(inserting_chunks)
 
-            # TODO: no incremental update for communities now, so just drop all
+            # TODO: don't support incremental update for communities now, so we have to drop all
             await self.community_reports.drop()
 
             # ---------- extract/summary entity and upsert to graph
@@ -310,6 +324,7 @@ class GraphRAG:
                 inserting_chunks,
                 knwoledge_graph_inst=self.chunk_entity_relation_graph,
                 entity_vdb=self.entities_vdb,
+                tokenizer_wrapper=self.tokenizer_wrapper,
                 global_config=asdict(self),
                 using_amazon_bedrock=self.using_amazon_bedrock,
             )
@@ -323,7 +338,7 @@ class GraphRAG:
                 self.graph_cluster_algorithm
             )
             await generate_community_report(
-                self.community_reports, self.chunk_entity_relation_graph, asdict(self)
+                self.community_reports, self.chunk_entity_relation_graph, self.tokenizer_wrapper, asdict(self)
             )
 
             # ---------- commit upsertings and indexing
