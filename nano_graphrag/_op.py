@@ -1,7 +1,6 @@
 import re
 import json
 import asyncio
-import tiktoken
 from typing import Union
 from collections import Counter, defaultdict
 from ._splitter import SeparatorSplitter
@@ -9,13 +8,13 @@ from ._utils import (
     logger,
     clean_str,
     compute_mdhash_id,
-    decode_tokens_by_tiktoken,
-    encode_string_by_tiktoken,
     is_float_regex,
     list_of_list_to_csv,
     pack_user_ass_to_openai_messages,
     split_string_by_multi_markers,
     truncate_list_by_token_size,
+
+    TokenizerWrapper
 )
 from .base import (
     BaseGraphStorage,
@@ -32,24 +31,22 @@ from .prompt import GRAPH_FIELD_SEP, PROMPTS
 def chunking_by_token_size(
     tokens_list: list[list[int]],
     doc_keys,
-    tiktoken_model,
+    tokenizer_wrapper: TokenizerWrapper, # *** 修改 ***: 明确类型
     overlap_token_size=128,
     max_token_size=1024,
 ):
-
     results = []
     for index, tokens in enumerate(tokens_list):
         chunk_token = []
         lengths = []
         for start in range(0, len(tokens), max_token_size - overlap_token_size):
-
             chunk_token.append(tokens[start : start + max_token_size])
             lengths.append(min(max_token_size, len(tokens) - start))
 
-        # here somehow tricky, since the whole chunk tokens is list[list[list[int]]] for corpus(doc(chunk)),so it can't be decode entirely
-        chunk_token = tiktoken_model.decode_batch(chunk_token)
-        for i, chunk in enumerate(chunk_token):
+        # *** 修改 ***: 直接使用 wrapper 解码
+        chunk_texts = tokenizer_wrapper.decode_batch(chunk_token)
 
+        for i, chunk in enumerate(chunk_texts):
             results.append(
                 {
                     "tokens": lengths[i],
@@ -58,34 +55,31 @@ def chunking_by_token_size(
                     "full_doc_id": doc_keys[index],
                 }
             )
-
     return results
 
 
 def chunking_by_seperators(
     tokens_list: list[list[int]],
     doc_keys,
-    tiktoken_model,
+    tokenizer_wrapper: TokenizerWrapper,
     overlap_token_size=128,
     max_token_size=1024,
 ):
-
+    from .prompt import PROMPTS
+    # *** 修改 ***: 直接使用 wrapper 编码，而不是获取底层 tokenizer
+    separators = [tokenizer_wrapper.encode(s) for s in PROMPTS["default_text_separator"]]
     splitter = SeparatorSplitter(
-        separators=[
-            tiktoken_model.encode(s) for s in PROMPTS["default_text_separator"]
-        ],
+        separators=separators,
         chunk_size=max_token_size,
         chunk_overlap=overlap_token_size,
     )
     results = []
     for index, tokens in enumerate(tokens_list):
-        chunk_token = splitter.split_tokens(tokens)
-        lengths = [len(c) for c in chunk_token]
-
-        # here somehow tricky, since the whole chunk tokens is list[list[list[int]]] for corpus(doc(chunk)),so it can't be decode entirely
-        chunk_token = tiktoken_model.decode_batch(chunk_token)
-        for i, chunk in enumerate(chunk_token):
-
+        chunk_tokens = splitter.split_tokens(tokens)
+        lengths = [len(c) for c in chunk_tokens]
+        # *** 修改 ***: 直接使用 wrapper 解码
+        decoded_chunks = tokenizer_wrapper.decode_batch(chunk_tokens)
+        for i, chunk in enumerate(decoded_chunks):
             results.append(
                 {
                     "tokens": lengths[i],
@@ -94,28 +88,23 @@ def chunking_by_seperators(
                     "full_doc_id": doc_keys[index],
                 }
             )
-
     return results
 
 
-def get_chunks(new_docs, chunk_func=chunking_by_token_size, **chunk_func_params):
+def get_chunks(new_docs, chunk_func=chunking_by_token_size, tokenizer_wrapper: TokenizerWrapper = None, **chunk_func_params):
     inserting_chunks = {}
-
     new_docs_list = list(new_docs.items())
     docs = [new_doc[1]["content"] for new_doc in new_docs_list]
     doc_keys = [new_doc[0] for new_doc in new_docs_list]
 
-    ENCODER = tiktoken.encoding_for_model("gpt-4o")
-    tokens = ENCODER.encode_batch(docs, num_threads=16)
+    tokens = [tokenizer_wrapper.encode(doc) for doc in docs]
     chunks = chunk_func(
-        tokens, doc_keys=doc_keys, tiktoken_model=ENCODER, **chunk_func_params
+        tokens, doc_keys=doc_keys, tokenizer_wrapper=tokenizer_wrapper, overlap_token_size=chunk_func_params.get("overlap_token_size", 128), max_token_size=chunk_func_params.get("max_token_size", 1024)
     )
-
     for chunk in chunks:
         inserting_chunks.update(
             {compute_mdhash_id(chunk["content"], prefix="chunk-"): chunk}
         )
-
     return inserting_chunks
 
 
@@ -123,19 +112,19 @@ async def _handle_entity_relation_summary(
     entity_or_relation_name: str,
     description: str,
     global_config: dict,
+    tokenizer_wrapper: TokenizerWrapper,
 ) -> str:
     use_llm_func: callable = global_config["cheap_model_func"]
     llm_max_tokens = global_config["cheap_model_max_token_size"]
-    tiktoken_model_name = global_config["tiktoken_model_name"]
     summary_max_tokens = global_config["entity_summary_to_max_tokens"]
 
-    tokens = encode_string_by_tiktoken(description, model_name=tiktoken_model_name)
-    if len(tokens) < summary_max_tokens:  # No need for summary
+
+    tokens = tokenizer_wrapper.encode(description)
+    if len(tokens) < summary_max_tokens:
         return description
     prompt_template = PROMPTS["summarize_entity_descriptions"]
-    use_description = decode_tokens_by_tiktoken(
-        tokens[:llm_max_tokens], model_name=tiktoken_model_name
-    )
+
+    use_description = tokenizer_wrapper.decode(tokens[:llm_max_tokens])
     context_base = dict(
         entity_name=entity_or_relation_name,
         description_list=use_description.split(GRAPH_FIELD_SEP),
@@ -195,6 +184,7 @@ async def _merge_nodes_then_upsert(
     nodes_data: list[dict],
     knwoledge_graph_inst: BaseGraphStorage,
     global_config: dict,
+    tokenizer_wrapper,
 ):
     already_entitiy_types = []
     already_source_ids = []
@@ -222,7 +212,7 @@ async def _merge_nodes_then_upsert(
         set([dp["source_id"] for dp in nodes_data] + already_source_ids)
     )
     description = await _handle_entity_relation_summary(
-        entity_name, description, global_config
+        entity_name, description, global_config, tokenizer_wrapper
     )
     node_data = dict(
         entity_type=entity_type,
@@ -243,6 +233,7 @@ async def _merge_edges_then_upsert(
     edges_data: list[dict],
     knwoledge_graph_inst: BaseGraphStorage,
     global_config: dict,
+    tokenizer_wrapper,
 ):
     already_weights = []
     already_source_ids = []
@@ -277,7 +268,7 @@ async def _merge_edges_then_upsert(
                 },
             )
     description = await _handle_entity_relation_summary(
-        (src_id, tgt_id), description, global_config
+        (src_id, tgt_id), description, global_config, tokenizer_wrapper
     )
     await knwoledge_graph_inst.upsert_edge(
         src_id,
@@ -292,6 +283,7 @@ async def extract_entities(
     chunks: dict[str, TextChunkSchema],
     knwoledge_graph_inst: BaseGraphStorage,
     entity_vdb: BaseVectorStorage,
+    tokenizer_wrapper,
     global_config: dict,
     using_amazon_bedrock: bool=False,
 ) -> Union[BaseGraphStorage, None]:
@@ -397,13 +389,13 @@ async def extract_entities(
             maybe_edges[tuple(sorted(k))].extend(v)
     all_entities_data = await asyncio.gather(
         *[
-            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config)
+            _merge_nodes_then_upsert(k, v, knwoledge_graph_inst, global_config, tokenizer_wrapper)
             for k, v in maybe_nodes.items()
         ]
     )
     await asyncio.gather(
         *[
-            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config)
+            _merge_edges_then_upsert(k[0], k[1], v, knwoledge_graph_inst, global_config, tokenizer_wrapper)
             for k, v in maybe_edges.items()
         ]
     )
@@ -426,18 +418,20 @@ def _pack_single_community_by_sub_communities(
     community: SingleCommunitySchema,
     max_token_size: int,
     already_reports: dict[str, CommunitySchema],
-) -> tuple[str, int]:
-    # TODO
+    tokenizer_wrapper: TokenizerWrapper, # +++ 新增 +++
+) -> tuple[str, int, set, set]: # *** 修改 ***: 返回类型更精确
     all_sub_communities = [
         already_reports[k] for k in community["sub_communities"] if k in already_reports
     ]
     all_sub_communities = sorted(
         all_sub_communities, key=lambda x: x["occurrence"], reverse=True
     )
+    
     may_trun_all_sub_communities = truncate_list_by_token_size(
         all_sub_communities,
         key=lambda x: x["report_string"],
         max_token_size=max_token_size,
+        tokenizer_wrapper=tokenizer_wrapper,
     )
     sub_fields = ["id", "report", "rating", "importance"]
     sub_communities_describe = list_of_list_to_csv(
@@ -457,9 +451,11 @@ def _pack_single_community_by_sub_communities(
     for c in may_trun_all_sub_communities:
         already_nodes.extend(c["nodes"])
         already_edges.extend([tuple(e) for e in c["edges"]])
+    
+    # *** 修改 ***: 直接使用 wrapper 编码
     return (
         sub_communities_describe,
-        len(encode_string_by_tiktoken(sub_communities_describe)),
+        len(tokenizer_wrapper.encode(sub_communities_describe)),
         set(already_nodes),
         set(already_edges),
     )
@@ -468,10 +464,15 @@ def _pack_single_community_by_sub_communities(
 async def _pack_single_community_describe(
     knwoledge_graph_inst: BaseGraphStorage,
     community: SingleCommunitySchema,
+    tokenizer_wrapper: "TokenizerWrapper",
     max_token_size: int = 12000,
     already_reports: dict[str, CommunitySchema] = {},
     global_config: dict = {},
 ) -> str:
+
+    
+
+    # 1. 准备原始数据
     nodes_in_order = sorted(community["nodes"])
     edges_in_order = sorted(community["edges"], key=lambda x: x[0] + x[1])
 
@@ -481,97 +482,129 @@ async def _pack_single_community_describe(
     edges_data = await asyncio.gather(
         *[knwoledge_graph_inst.get_edge(src, tgt) for src, tgt in edges_in_order]
     )
-    node_fields = ["id", "entity", "type", "description", "degree"]
-    edge_fields = ["id", "source", "target", "description", "rank"]
-    node_degrees = await knwoledge_graph_inst.node_degrees_batch(nodes_in_order)
-    nodes_list_data = [
-        [
-            i,
-            node_name,
-            node_data.get("entity_type", "UNKNOWN"),
-            node_data.get("description", "UNKNOWN"),
-            node_degrees[i],
-        ]
-        for i, (node_name, node_data) in enumerate(zip(nodes_in_order, nodes_data))
-    ]
-    nodes_list_data = sorted(nodes_list_data, key=lambda x: x[-1], reverse=True)
-    nodes_may_truncate_list_data = truncate_list_by_token_size(
-        nodes_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
-    )
-    edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order)
-    edges_list_data = [
-        [
-            i,
-            edge_name[0],
-            edge_name[1],
-            edge_data.get("description", "UNKNOWN"),
-            edge_degrees[i]
-        ]
-        for i, (edge_name, edge_data) in enumerate(zip(edges_in_order, edges_data))
-    ]
-    edges_list_data = sorted(edges_list_data, key=lambda x: x[-1], reverse=True)
-    edges_may_truncate_list_data = truncate_list_by_token_size(
-        edges_list_data, key=lambda x: x[3], max_token_size=max_token_size // 2
-    )
 
-    truncated = len(nodes_list_data) > len(nodes_may_truncate_list_data) or len(
-        edges_list_data
-    ) > len(edges_may_truncate_list_data)
 
-    # If context is exceed the limit and have sub-communities:
+    # 2. 定义模板和固定开销
+    final_template = """-----Reports-----
+```csv
+{reports}
+```
+-----Entities-----
+```csv
+{entities}
+```
+-----Relationships-----
+```csv
+{relationships}
+```"""
+    base_template_tokens = len(tokenizer_wrapper.encode(
+        final_template.format(reports="", entities="", relationships="")
+    ))
+    remaining_budget = max_token_size - base_template_tokens
+
+    # 3. 处理子社区报告
     report_describe = ""
+    contain_nodes = set()
+    contain_edges = set()
+    
+    # 启发式截断检测
+    truncated = len(nodes_in_order) > 100 or len(edges_in_order) > 100
+    
     need_to_use_sub_communities = (
-        truncated and len(community["sub_communities"]) and len(already_reports)
+        truncated and 
+        community["sub_communities"] and 
+        already_reports
     )
     force_to_use_sub_communities = global_config["addon_params"].get(
         "force_to_use_sub_communities", False
     )
+    
     if need_to_use_sub_communities or force_to_use_sub_communities:
-        logger.debug(
-            f"Community {community['title']} exceeds the limit or you set force_to_use_sub_communities to True, using its sub-communities"
+        logger.debug(f"Community {community['title']} using sub-communities")
+        # 获取子社区报告及包含的节点/边
+        result = _pack_single_community_by_sub_communities(
+            community, remaining_budget, already_reports, tokenizer_wrapper
         )
-        report_describe, report_size, contain_nodes, contain_edges = (
-            _pack_single_community_by_sub_communities(
-                community, max_token_size, already_reports
-            )
-        )
-        report_exclude_nodes_list_data = [
-            n for n in nodes_list_data if n[1] not in contain_nodes
-        ]
-        report_include_nodes_list_data = [
-            n for n in nodes_list_data if n[1] in contain_nodes
-        ]
-        report_exclude_edges_list_data = [
-            e for e in edges_list_data if (e[1], e[2]) not in contain_edges
-        ]
-        report_include_edges_list_data = [
-            e for e in edges_list_data if (e[1], e[2]) in contain_edges
-        ]
-        # if report size is bigger than max_token_size, nodes and edges are []
-        nodes_may_truncate_list_data = truncate_list_by_token_size(
-            report_exclude_nodes_list_data + report_include_nodes_list_data,
-            key=lambda x: x[3],
-            max_token_size=(max_token_size - report_size) // 2,
-        )
-        edges_may_truncate_list_data = truncate_list_by_token_size(
-            report_exclude_edges_list_data + report_include_edges_list_data,
-            key=lambda x: x[3],
-            max_token_size=(max_token_size - report_size) // 2,
-        )
-    nodes_describe = list_of_list_to_csv([node_fields] + nodes_may_truncate_list_data)
-    edges_describe = list_of_list_to_csv([edge_fields] + edges_may_truncate_list_data)
-    return f"""-----Reports-----
-```csv
-{report_describe}
-```
------Entities-----
-```csv
-{nodes_describe}
-```
------Relationships-----
-```csv
-{edges_describe}
-```"""
+        report_describe, report_size, contain_nodes, contain_edges = result
+        remaining_budget = max(0, remaining_budget - report_size)
+
+    # 4. 准备节点和边数据（过滤子社区已包含的）
+    def format_row(row: list) -> str:
+        return ','.join(f'"{str(item).replace("\"", "\"\"")}"' for item in row)
+
+    node_fields = ["id", "entity", "type", "description", "degree"]
+    edge_fields = ["id", "source", "target", "description", "rank"]
+
+    # 获取度数并创建数据结构
+    node_degrees = await knwoledge_graph_inst.node_degrees_batch(nodes_in_order)
+    edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order)
+    
+    # 过滤已存在于子社区的节点/边
+    nodes_list_data = [
+        [i, name, data.get("entity_type", "UNKNOWN"), 
+         data.get("description", "UNKNOWN"), node_degrees[i]]
+        for i, (name, data) in enumerate(zip(nodes_in_order, nodes_data))
+        if name not in contain_nodes  # 关键过滤
+    ]
+    
+    edges_list_data = [
+        [i, edge[0], edge[1], data.get("description", "UNKNOWN"), edge_degrees[i]]
+        for i, (edge, data) in enumerate(zip(edges_in_order, edges_data))
+        if (edge[0], edge[1]) not in contain_edges  # 关键过滤
+    ]
+    
+    # 按重要性排序
+    nodes_list_data.sort(key=lambda x: x[-1], reverse=True)
+    edges_list_data.sort(key=lambda x: x[-1], reverse=True)
+
+    # 5. 动态分配预算
+    # 计算表头开销
+    header_tokens = len(tokenizer_wrapper.encode(
+        list_of_list_to_csv([node_fields]) + "\n" + list_of_list_to_csv([edge_fields])
+    ))
+
+
+
+    data_budget = max(0, remaining_budget - header_tokens)
+    total_items = len(nodes_list_data) + len(edges_list_data)
+    node_ratio = len(nodes_list_data) / max(1, total_items)
+    edge_ratio = 1 - node_ratio
+
+
+
+
+    # 执行截断
+    nodes_final = truncate_list_by_token_size(
+        nodes_list_data, key=format_row, 
+        max_token_size=int(data_budget * node_ratio), 
+        tokenizer_wrapper=tokenizer_wrapper
+    )
+    edges_final = truncate_list_by_token_size(
+        edges_list_data, key=format_row,
+        max_token_size= int(data_budget * edge_ratio),
+        tokenizer_wrapper=tokenizer_wrapper
+    )
+
+    # 6. 组装最终输出
+    nodes_describe = list_of_list_to_csv([node_fields] + nodes_final)
+    edges_describe = list_of_list_to_csv([edge_fields] + edges_final)
+
+
+
+    final_output = final_template.format(
+        reports=report_describe,
+        entities=nodes_describe,
+        relationships=edges_describe
+    )
+    # len(tokenizer_wrapper.encode(nodes_describe))
+    
+    # len(tokenizer_wrapper.encode(edges_describe))
+    
+    final_tokens = len(tokenizer_wrapper.encode(final_output))
+    if final_tokens > max_token_size:
+        breakpoint()
+
+    return final_output
 
 
 def _community_report_json_to_str(parsed_output: dict) -> str:
@@ -599,21 +632,20 @@ def _community_report_json_to_str(parsed_output: dict) -> str:
 async def generate_community_report(
     community_report_kv: BaseKVStorage[CommunitySchema],
     knwoledge_graph_inst: BaseGraphStorage,
+    tokenizer_wrapper: TokenizerWrapper,
     global_config: dict,
 ):
     llm_extra_kwargs = global_config["special_community_report_llm_kwargs"]
     use_llm_func: callable = global_config["best_model_func"]
-    use_string_json_convert_func: callable = global_config[
-        "convert_response_to_json_func"
-    ]
-
-    community_report_prompt = PROMPTS["community_report"]
+    use_string_json_convert_func: callable = global_config["convert_response_to_json_func"]
 
     communities_schema = await knwoledge_graph_inst.community_schema()
-    community_keys, community_values = list(communities_schema.keys()), list(
-        communities_schema.values()
-    )
+    community_keys, community_values = list(communities_schema.keys()), list(communities_schema.values())
     already_processed = 0
+
+    prompt_template = PROMPTS["community_report"]
+
+    prompt_overhead = len(tokenizer_wrapper.encode(prompt_template.format(input_text="")))
 
     async def _form_single_community_report(
         community: SingleCommunitySchema, already_reports: dict[str, CommunitySchema]
@@ -622,23 +654,19 @@ async def generate_community_report(
         describe = await _pack_single_community_describe(
             knwoledge_graph_inst,
             community,
-            max_token_size=global_config["best_model_max_token_size"],
+            tokenizer_wrapper=tokenizer_wrapper, 
+            max_token_size=global_config["best_model_max_token_size"] - prompt_overhead -200, # extra token for chat template and prompt template
             already_reports=already_reports,
             global_config=global_config,
         )
-        prompt = community_report_prompt.format(input_text=describe)
-        response = await use_llm_func(prompt, **llm_extra_kwargs)
+        prompt = prompt_template.format(input_text=describe)
 
+
+        response = await use_llm_func(prompt, **llm_extra_kwargs)
         data = use_string_json_convert_func(response)
         already_processed += 1
-        now_ticks = PROMPTS["process_tickers"][
-            already_processed % len(PROMPTS["process_tickers"])
-        ]
-        print(
-            f"{now_ticks} Processed {already_processed} communities\r",
-            end="",
-            flush=True,
-        )
+        now_ticks = PROMPTS["process_tickers"][already_processed % len(PROMPTS["process_tickers"])]
+        print(f"{now_ticks} Processed {already_processed} communities\r", end="", flush=True)
         return data
 
     levels = sorted(set([c["level"] for c in community_values]), reverse=True)
@@ -680,6 +708,7 @@ async def _find_most_related_community_from_entities(
     node_datas: list[dict],
     query_param: QueryParam,
     community_reports: BaseKVStorage[CommunitySchema],
+    tokenizer_wrapper,
 ):
     related_communities = []
     for node_d in node_datas:
@@ -716,6 +745,7 @@ async def _find_most_related_community_from_entities(
         sorted_community_datas,
         key=lambda x: x["report_string"],
         max_token_size=query_param.local_max_token_for_community_report,
+        tokenizer_wrapper=tokenizer_wrapper, 
     )
     if query_param.local_community_single_one:
         use_community_reports = use_community_reports[:1]
@@ -727,6 +757,7 @@ async def _find_most_related_text_unit_from_entities(
     query_param: QueryParam,
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     knowledge_graph_inst: BaseGraphStorage,
+    tokenizer_wrapper,
 ):
     text_units = [
         split_string_by_multi_markers(dp["source_id"], [GRAPH_FIELD_SEP])
@@ -774,6 +805,7 @@ async def _find_most_related_text_unit_from_entities(
         all_text_units,
         key=lambda x: x["data"]["content"],
         max_token_size=query_param.local_max_token_for_text_unit,
+        tokenizer_wrapper=tokenizer_wrapper, # 传入 wrapper
     )
     all_text_units: list[TextChunkSchema] = [t["data"] for t in all_text_units]
     return all_text_units
@@ -783,6 +815,7 @@ async def _find_most_related_edges_from_entities(
     node_datas: list[dict],
     query_param: QueryParam,
     knowledge_graph_inst: BaseGraphStorage,
+    tokenizer_wrapper,
 ):
     all_related_edges = await knowledge_graph_inst.get_nodes_edges_batch([dp["entity_name"] for dp in node_datas])
     
@@ -810,6 +843,7 @@ async def _find_most_related_edges_from_entities(
         all_edges_data,
         key=lambda x: x["description"],
         max_token_size=query_param.local_max_token_for_local_context,
+        tokenizer_wrapper=tokenizer_wrapper, 
     )
     return all_edges_data
 
@@ -821,6 +855,7 @@ async def _build_local_query_context(
     community_reports: BaseKVStorage[CommunitySchema],
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
+    tokenizer_wrapper,
 ):
     results = await entities_vdb.query(query, top_k=query_param.top_k)
     if not len(results):
@@ -835,13 +870,13 @@ async def _build_local_query_context(
         if n is not None
     ]
     use_communities = await _find_most_related_community_from_entities(
-        node_datas, query_param, community_reports
+        node_datas, query_param, community_reports, tokenizer_wrapper
     )
     use_text_units = await _find_most_related_text_unit_from_entities(
-        node_datas, query_param, text_chunks_db, knowledge_graph_inst
+        node_datas, query_param, text_chunks_db, knowledge_graph_inst, tokenizer_wrapper
     )
     use_relations = await _find_most_related_edges_from_entities(
-        node_datas, query_param, knowledge_graph_inst
+        node_datas, query_param, knowledge_graph_inst, tokenizer_wrapper
     )
     logger.info(
         f"Using {len(node_datas)} entites, {len(use_communities)} communities, {len(use_relations)} relations, {len(use_text_units)} text units"
@@ -911,6 +946,7 @@ async def local_query(
     community_reports: BaseKVStorage[CommunitySchema],
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
+    tokenizer_wrapper,
     global_config: dict,
 ) -> str:
     use_model_func = global_config["best_model_func"]
@@ -921,6 +957,7 @@ async def local_query(
         community_reports,
         text_chunks_db,
         query_param,
+        tokenizer_wrapper,
     )
     if query_param.only_need_context:
         return context
@@ -942,6 +979,7 @@ async def _map_global_communities(
     communities_data: list[CommunitySchema],
     query_param: QueryParam,
     global_config: dict,
+    tokenizer_wrapper,
 ):
     use_string_json_convert_func = global_config["convert_response_to_json_func"]
     use_model_func = global_config["best_model_func"]
@@ -951,6 +989,7 @@ async def _map_global_communities(
             communities_data,
             key=lambda x: x["report_string"],
             max_token_size=query_param.global_max_token_for_community_report,
+            tokenizer_wrapper=tokenizer_wrapper, # 传入 wrapper
         )
         community_groups.append(this_group)
         communities_data = communities_data[len(this_group) :]
@@ -989,6 +1028,7 @@ async def global_query(
     community_reports: BaseKVStorage[CommunitySchema],
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
+    tokenizer_wrapper,
     global_config: dict,
 ) -> str:
     community_schema = await knowledge_graph_inst.community_schema()
@@ -1024,7 +1064,7 @@ async def global_query(
     logger.info(f"Revtrieved {len(community_datas)} communities")
 
     map_communities_points = await _map_global_communities(
-        query, community_datas, query_param, global_config
+        query, community_datas, query_param, global_config, tokenizer_wrapper
     )
     final_support_points = []
     for i, mc in enumerate(map_communities_points):
@@ -1048,6 +1088,7 @@ async def global_query(
         final_support_points,
         key=lambda x: x["answer"],
         max_token_size=query_param.global_max_token_for_community_report,
+        tokenizer_wrapper=tokenizer_wrapper, # 传入 wrapper
     )
     points_context = []
     for dp in final_support_points:
@@ -1075,6 +1116,7 @@ async def naive_query(
     chunks_vdb: BaseVectorStorage,
     text_chunks_db: BaseKVStorage[TextChunkSchema],
     query_param: QueryParam,
+    tokenizer_wrapper,
     global_config: dict,
 ):
     use_model_func = global_config["best_model_func"]
@@ -1088,6 +1130,7 @@ async def naive_query(
         chunks,
         key=lambda x: x["content"],
         max_token_size=query_param.naive_max_token_for_text_unit,
+        tokenizer_wrapper=tokenizer_wrapper, # 传入 wrapper
     )
     logger.info(f"Truncate {len(chunks)} to {len(maybe_trun_chunks)} chunks")
     section = "--New Chunk--\n".join([c["content"] for c in maybe_trun_chunks])

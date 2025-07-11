@@ -8,14 +8,16 @@ import numbers
 from dataclasses import dataclass
 from functools import wraps
 from hashlib import md5
-from typing import Any, Union
+from typing import Any, Union, Literal
 
 import numpy as np
 import tiktoken
 
+
+from transformers import AutoTokenizer
+
 logger = logging.getLogger("nano-graphrag")
 logging.getLogger("neo4j").setLevel(logging.ERROR)
-ENCODER = None
 
 def always_get_an_event_loop() -> asyncio.AbstractEventLoop:
     try:
@@ -118,29 +120,64 @@ def convert_response_to_json(response: str) -> dict:
 
 
 
-def encode_string_by_tiktoken(content: str, model_name: str = "gpt-4o"):
-    global ENCODER
-    if ENCODER is None:
-        ENCODER = tiktoken.encoding_for_model(model_name)
-    tokens = ENCODER.encode(content)
-    return tokens
+class TokenizerWrapper:
+    def __init__(self, tokenizer_type: Literal["tiktoken", "huggingface"] = "tiktoken", model_name: str = "gpt-4o"):
+        self.tokenizer_type = tokenizer_type
+        self.model_name = model_name
+        self._tokenizer = None
+        self._lazy_load_tokenizer()
+
+    def _lazy_load_tokenizer(self):
+        if self._tokenizer is not None:
+            return
+        logger.info(f"Loading tokenizer: type='{self.tokenizer_type}', name='{self.model_name}'")
+        if self.tokenizer_type == "tiktoken":
+            self._tokenizer = tiktoken.encoding_for_model(self.model_name)
+        elif self.tokenizer_type == "huggingface":
+            if AutoTokenizer is None:
+                raise ImportError("`transformers` is not installed. Please install it via `pip install transformers` to use HuggingFace tokenizers.")
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
+        else:
+            raise ValueError(f"Unknown tokenizer_type: {self.tokenizer_type}")
+
+    def get_tokenizer(self):
+        """提供对底层 tokenizer 对象的访问，用于特殊情况（如 decode_batch）。"""
+        self._lazy_load_tokenizer()
+        return self._tokenizer
+
+    def encode(self, text: str) -> list[int]:
+        self._lazy_load_tokenizer()
+        return self._tokenizer.encode(text)
+
+    def decode(self, tokens: list[int]) -> str:
+        self._lazy_load_tokenizer()
+        return self._tokenizer.decode(tokens)
+    
+    # +++ 新增 +++: 增加一个批量解码的方法以提高效率，并保持接口一致性
+    def decode_batch(self, tokens_list: list[list[int]]) -> list[str]:
+        self._lazy_load_tokenizer()
+        # HuggingFace tokenizer 有 decode_batch，但 tiktoken 没有，我们用列表推导来模拟
+        if self.tokenizer_type == "tiktoken":
+            return [self._tokenizer.decode(tokens) for tokens in tokens_list]
+        elif self.tokenizer_type == "huggingface":
+            return self._tokenizer.batch_decode(tokens_list, skip_special_tokens=True)
+        else:
+             raise ValueError(f"Unknown tokenizer_type: {self.tokenizer_type}")
+        
 
 
-def decode_tokens_by_tiktoken(tokens: list[int], model_name: str = "gpt-4o"):
-    global ENCODER
-    if ENCODER is None:
-        ENCODER = tiktoken.encoding_for_model(model_name)
-    content = ENCODER.decode(tokens)
-    return content
-
-
-def truncate_list_by_token_size(list_data: list, key: callable, max_token_size: int):
-    """Truncate a list of data by token size"""
+def truncate_list_by_token_size(
+    list_data: list, 
+    key: callable, 
+    max_token_size: int, 
+    tokenizer_wrapper: TokenizerWrapper
+):
+    """Truncate a list of data by token size using a provided tokenizer wrapper."""
     if max_token_size <= 0:
         return []
     tokens = 0
     for i, data in enumerate(list_data):
-        tokens += len(encode_string_by_tiktoken(key(data)))
+        tokens += len(tokenizer_wrapper.encode(key(data))) + 1 # 防御性，模拟通过\n拼接列表的情况
         if tokens > max_token_size:
             return list_data[:i]
     return list_data
