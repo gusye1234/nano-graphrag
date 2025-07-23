@@ -530,7 +530,7 @@ async def _pack_single_community_describe(
 
     # 4. 准备节点和边数据（过滤子社区已包含的）
     def format_row(row: list) -> str:
-        return ','.join(f'"{str(item).replace("\"", "\"\"")}"' for item in row)
+        return ','.join('"{}"'.format(str(item).replace('"', '""')) for item in row)
 
     node_fields = ["id", "entity", "type", "description", "degree"]
     edge_fields = ["id", "source", "target", "description", "rank"]
