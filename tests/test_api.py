@@ -25,7 +25,6 @@ def test_azure_gpt_4o_complete():
     async def _test():
         try:
             azure_client = get_azure_openai_async_client_instance()
-            # Try to print the actual endpoint used by the client
             api_endpoint = getattr(azure_client, "_base_url", None) or getattr(azure_client, "base_url", None) or "<unknown>"
             print("Actual Azure API endpoint used:", api_endpoint)
             response = await azure_gpt_4o_complete("Say hello to GraphRAG!")
