@@ -42,6 +42,21 @@ def get_amazon_bedrock_async_client_instance():
     return global_amazon_bedrock_async_client
 
 
+def get_azure_openai_mini_client_instance(
+    environemental_variable_name="AZURE_OPENAI_MINI_ENDPOINT"
+):
+    """Retrieve the environemntal variable for the mini version of the end point if given.
+    """
+    base_url = os.environ.get(environemental_variable_name)
+    if base_url:
+        # Ensure the endpoint ends with '/openai'
+        if not base_url.rstrip('/').endswith('/openai'):
+            base_url = base_url.rstrip('/') + '/openai'
+        return AsyncAzureOpenAI(base_url=base_url)
+    else:
+        return get_azure_openai_async_client_instance()  # existing function
+
+
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -226,7 +241,11 @@ async def openai_embedding(texts: list[str]) -> np.ndarray:
 async def azure_openai_complete_if_cache(
     deployment_name, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    azure_openai_client = get_azure_openai_async_client_instance()
+    if deployment_name == "gpt-4o-mini":
+        azure_openai_client = get_azure_openai_mini_client_instance()
+    else:
+        azure_openai_client = get_azure_openai_async_client_instance()
+    
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
