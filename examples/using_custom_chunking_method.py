@@ -1,7 +1,6 @@
 from nano_graphrag._utils import encode_string_by_tiktoken
 from nano_graphrag.base import QueryParam
 from nano_graphrag.graphrag import GraphRAG
-from nano_graphrag._op import chunking_by_seperators
 
 
 def chunking_by_token_size(
@@ -39,5 +38,5 @@ def chunking_by_token_size(
 WORKING_DIR = "./nano_graphrag_cache_local_embedding_TEST"
 rag = GraphRAG(
     working_dir=WORKING_DIR,
-    chunk_func=chunking_by_seperators,
+    chunk_func=chunking_by_token_size,
 )
