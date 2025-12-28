@@ -375,3 +375,29 @@ async def test_error_handling(networkx_storage):
 
     with pytest.raises(ValueError, match="Node embedding algorithm invalid_algo not supported"):
         await networkx_storage.embed_nodes("invalid_algo")
+
+
+@pytest.mark.parametrize("algorithm", ["leiden"])
+@pytest.mark.asyncio
+async def test_clustering_with_zero_edges(networkx_storage, algorithm):
+    """Test that leiden clustering handles graphs with nodes but no edges gracefully.
+
+    This is a regression test for issue #167 where graphs with 0 edges
+    would trigger a leiden error.
+    """
+    for i in range(5):
+        await networkx_storage.upsert_node(f"NODE{i}", {"source_id": f"chunk{i}"})
+
+    assert networkx_storage._graph.number_of_nodes() == 5
+    assert networkx_storage._graph.number_of_edges() == 0
+
+    await networkx_storage.clustering(algorithm=algorithm)
+
+    community_schema = await networkx_storage.community_schema()
+    # Expect a community for each node since they are disconnected
+    assert len(community_schema) == 5
+    # Ensure all nodes are present in the schema
+    clustered_nodes = set()
+    for comm in community_schema.values():
+        clustered_nodes.update(comm["nodes"])
+    assert len(clustered_nodes) == 5

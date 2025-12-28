@@ -228,9 +228,21 @@ class NetworkXStorage(BaseGraphStorage):
             self._graph.nodes[node_id]["clusters"] = json.dumps(clusters)
 
     async def _leiden_clustering(self):
+        if self._graph.number_of_edges() == 0:
+            logger.warning(
+                "Graph has no edges. Skipping leiden clustering - each node will be treated as its own community."
+            )
+            node_communities: dict[str, list[dict[str, str]]] = {}
+            for i, node in enumerate(self._graph.nodes()):
+                node_communities[node] = [{"level": 0, "cluster": i}]
+            logger.info(f"Each level has communities: {{0: {len(node_communities)}}}")
+            self._cluster_data_to_subgraphs(node_communities)
+            return
+
         from graspologic.partition import hierarchical_leiden
 
         graph = NetworkXStorage.stable_largest_connected_component(self._graph)
+
         community_mapping = hierarchical_leiden(
             graph,
             max_cluster_size=self.global_config["max_graph_cluster_size"],
