@@ -14,7 +14,10 @@ import numpy as np
 import tiktoken
 
 
-from transformers import AutoTokenizer
+try:
+    from transformers import AutoTokenizer
+except ImportError:
+    AutoTokenizer = None
 
 logger = logging.getLogger("nano-graphrag")
 logging.getLogger("neo4j").setLevel(logging.ERROR)
