@@ -198,33 +198,33 @@ async def _merge_nodes_then_upsert(
         )
         already_description.append(already_node["description"])
 
-    entity_type = sorted(
+    entity_type = sorted( # 从所有该名称的节点中，找出最常见的实体类型，作为最终的实体类型
         Counter(
             [dp["entity_type"] for dp in nodes_data] + already_entitiy_types
         ).items(),
         key=lambda x: x[1],
         reverse=True,
     )[0][0]
-    description = GRAPH_FIELD_SEP.join(
+    description = GRAPH_FIELD_SEP.join( # 合并所有实体描述
         sorted(set([dp["description"] for dp in nodes_data] + already_description))
     )
-    source_id = GRAPH_FIELD_SEP.join(
+    source_id = GRAPH_FIELD_SEP.join( # 合并所有实体所在的chunk的id
         set([dp["source_id"] for dp in nodes_data] + already_source_ids)
     )
-    description = await _handle_entity_relation_summary(
+    description = await _handle_entity_relation_summary( # 如果实体描述太长了就进行压缩，否则返回原描述
         entity_name, description, global_config, tokenizer_wrapper
     )
-    node_data = dict(
+    node_data = dict( # 根据以上汇总，合并成一个最终的node
         entity_type=entity_type,
         description=description,
         source_id=source_id,
     )
-    await knwoledge_graph_inst.upsert_node(
+    await knwoledge_graph_inst.upsert_node( # 插入最终的node
         entity_name,
         node_data=node_data,
     )
     node_data["entity_name"] = entity_name
-    return node_data
+    return node_data # 返回最终的node
 
 
 async def _merge_edges_then_upsert(
@@ -257,7 +257,7 @@ async def _merge_edges_then_upsert(
     source_id = GRAPH_FIELD_SEP.join(
         set([dp["source_id"] for dp in edges_data] + already_source_ids)
     )
-    for need_insert_id in [src_id, tgt_id]:
+    for need_insert_id in [src_id, tgt_id]: # ? 这个操作有点奇怪，如果src_id或tgt_id不存在，则插入一个类型为UNKNOWN的同名节点，而其描述居然是用这条边的描述
         if not (await knwoledge_graph_inst.has_node(need_insert_id)):
             await knwoledge_graph_inst.upsert_node(
                 need_insert_id,
@@ -536,21 +536,21 @@ async def _pack_single_community_describe(
     edge_fields = ["id", "source", "target", "description", "rank"]
 
     # 获取度数并创建数据结构
-    node_degrees = await knwoledge_graph_inst.node_degrees_batch(nodes_in_order)
-    edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order)
+    node_degrees = await knwoledge_graph_inst.node_degrees_batch(nodes_in_order) # 度=重要性
+    edge_degrees = await knwoledge_graph_inst.edge_degrees_batch(edges_in_order) # 边的度是一条边连接的两个节点的度数之和
     
-    # 过滤已存在于子社区的节点/边
+    # 将节点和边数据转换为列表格式
     nodes_list_data = [
         [i, name, data.get("entity_type", "UNKNOWN"), 
          data.get("description", "UNKNOWN"), node_degrees[i]]
         for i, (name, data) in enumerate(zip(nodes_in_order, nodes_data))
-        if name not in contain_nodes  # 关键过滤
+        if name not in contain_nodes
     ]
     
     edges_list_data = [
         [i, edge[0], edge[1], data.get("description", "UNKNOWN"), edge_degrees[i]]
         for i, (edge, data) in enumerate(zip(edges_in_order, edges_data))
-        if (edge[0], edge[1]) not in contain_edges  # 关键过滤
+        if (edge[0], edge[1]) not in contain_edges
     ]
     
     # 按重要性排序
@@ -757,7 +757,7 @@ async def _find_most_related_text_unit_from_entities(
         for dp in node_datas
     ]
     edges = await knowledge_graph_inst.get_nodes_edges_batch([dp["entity_name"] for dp in node_datas])
-    all_one_hop_nodes = set()
+    all_one_hop_nodes = set() # 所有一跳邻居节点集合
     for this_edges in edges:
         if not this_edges:
             continue
@@ -770,17 +770,18 @@ async def _find_most_related_text_unit_from_entities(
         if v is not None
     }
     all_text_units_lookup = {}
+    # 遍历每个节点的来源chunk，检查该chunk在多少个一跳邻居节点中也出现，出现次数越多，表示该 chunk 在关系网络中越重要
     for index, (this_text_units, this_edges) in enumerate(zip(text_units, edges)):
-        for c_id in this_text_units:
+        for c_id in this_text_units: # this_text_units 是当前节点的chunk来源列表
             if c_id in all_text_units_lookup:
                 continue
             relation_counts = 0
-            for e in this_edges:
+            for e in this_edges: 
                 if (
-                    e[1] in all_one_hop_text_units_lookup
+                    e[1] in all_one_hop_text_units_lookup # all_one_hop_text_units_lookup 是当前节点的一跳邻居节点的chunk来源映射
                     and c_id in all_one_hop_text_units_lookup[e[1]]
                 ):
-                    relation_counts += 1
+                    relation_counts += 1 # ! 含义：该 chunk 在多少个邻居节点中也出现，出现次数越多，表示该 chunk 在关系网络中越重要
             all_text_units_lookup[c_id] = {
                 "data": await text_chunks_db.get_by_id(c_id),
                 "order": index,
@@ -977,7 +978,7 @@ async def _map_global_communities(
     use_string_json_convert_func = global_config["convert_response_to_json_func"]
     use_model_func = global_config["best_model_func"]
     community_groups = []
-    while len(communities_data):
+    while len(communities_data): # 对community进行分组，每组community的报告总长度不超过global_max_token_for_community_report
         this_group = truncate_list_by_token_size(
             communities_data,
             key=lambda x: x["report_string"],

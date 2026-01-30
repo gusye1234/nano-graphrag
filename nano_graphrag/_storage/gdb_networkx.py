@@ -168,7 +168,7 @@ class NetworkXStorage(BaseGraphStorage):
         await self._clustering_algorithms[algorithm]()
 
     async def community_schema(self) -> dict[str, SingleCommunitySchema]:
-        results = defaultdict(
+        results = defaultdict( # 统计每一个社区的信息，不具体考虑每个节点
             lambda: dict(
                 level=None,
                 title=None,
@@ -181,7 +181,7 @@ class NetworkXStorage(BaseGraphStorage):
         )
         max_num_ids = 0
         levels = defaultdict(set)
-        for node_id, node_data in self._graph.nodes(data=True):
+        for node_id, node_data in self._graph.nodes(data=True): # 遍历原图的每一个节点，用节点信息充实其所在的每个祖先社区信息
             if "clusters" not in node_data:
                 continue
             clusters = json.loads(node_data["clusters"])
@@ -200,7 +200,7 @@ class NetworkXStorage(BaseGraphStorage):
                 results[cluster_key]["chunk_ids"].update(
                     node_data["source_id"].split(GRAPH_FIELD_SEP)
                 )
-                max_num_ids = max(max_num_ids, len(results[cluster_key]["chunk_ids"]))
+                max_num_ids = max(max_num_ids, len(results[cluster_key]["chunk_ids"])) # 统计和某一个社区相关的chunk的最大个数
 
         ordered_levels = sorted(levels.keys())
         for i, curr_level in enumerate(ordered_levels[:-1]):
@@ -209,7 +209,7 @@ class NetworkXStorage(BaseGraphStorage):
             next_level_comms = levels[next_level]
             # compute the sub-communities by nodes intersection
             for comm in this_level_comms:
-                results[comm]["sub_communities"] = [
+                results[comm]["sub_communities"] = [ # 计算每个社区的子社区
                     c
                     for c in next_level_comms
                     if results[c]["nodes"].issubset(results[comm]["nodes"])
@@ -220,7 +220,7 @@ class NetworkXStorage(BaseGraphStorage):
             v["edges"] = [list(e) for e in v["edges"]]
             v["nodes"] = list(v["nodes"])
             v["chunk_ids"] = list(v["chunk_ids"])
-            v["occurrence"] = len(v["chunk_ids"]) / max_num_ids
+            v["occurrence"] = len(v["chunk_ids"]) / max_num_ids # 证据支持度：社区包含的chunk个数 / 社区包含的chunk的最大个数
         return dict(results)
 
     def _cluster_data_to_subgraphs(self, cluster_data: dict[str, list[dict[str, str]]]):
@@ -230,10 +230,10 @@ class NetworkXStorage(BaseGraphStorage):
     async def _leiden_clustering(self):
         from graspologic.partition import hierarchical_leiden
 
-        graph = NetworkXStorage.stable_largest_connected_component(self._graph)
+        graph = NetworkXStorage.stable_largest_connected_component(self._graph) # ? 计算稳定最大连通子图
         community_mapping = hierarchical_leiden(
             graph,
-            max_cluster_size=self.global_config["max_graph_cluster_size"],
+            max_cluster_size=self.global_config["max_graph_cluster_size"], # 每个社区最大不超过max_graph_cluster_size个节点
             random_seed=self.global_config["graph_cluster_seed"],
         )
 
@@ -241,15 +241,15 @@ class NetworkXStorage(BaseGraphStorage):
         __levels = defaultdict(set)
         for partition in community_mapping:
             level_key = partition.level
-            cluster_id = partition.cluster
+            cluster_id = partition.cluster # cluster_id就是社区编号，同一社区的节点会有相同的cluster_id
             node_communities[partition.node].append(
                 {"level": level_key, "cluster": cluster_id}
             )
             __levels[level_key].add(cluster_id)
-        node_communities = dict(node_communities)
+        node_communities = dict(node_communities) # 每一个节点隶属的社区列表
         __levels = {k: len(v) for k, v in __levels.items()}
         logger.info(f"Each level has communities: {dict(__levels)}")
-        self._cluster_data_to_subgraphs(node_communities)
+        self._cluster_data_to_subgraphs(node_communities) # ! 将节点的隶属社区信息存储到【原图】的节点属性中 注意只有上边计算出的稳定最大连通子图的节点才有社区信息 其它的节点没有社区信息
 
     async def embed_nodes(self, algorithm: str) -> tuple[np.ndarray, list[str]]:
         if algorithm not in self._node_embed_algorithms:
