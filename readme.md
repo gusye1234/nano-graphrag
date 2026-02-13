@@ -38,7 +38,7 @@
 
 😭 [GraphRAG](https://arxiv.org/pdf/2404.16130) is good and powerful, but the official [implementation](https://github.com/microsoft/graphrag/tree/main) is difficult/painful to **read or hack**.
 
-😊 This project provides a **smaller, faster, cleaner GraphRAG**, while remaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
+😊 This project provides a **smaller, faster, cleaner GraphRAG**, while retaining the core functionality(see [benchmark](#benchmark) and [issues](#Issues) ).
 
 🎁 Excluding `tests` and prompts,  `nano-graphrag` is about **1100 lines of code**.
 
