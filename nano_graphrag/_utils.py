@@ -1,5 +1,6 @@
 import asyncio
 import html
+import json5
 import json
 import logging
 import os
@@ -189,14 +190,14 @@ def compute_mdhash_id(content, prefix: str = ""):
 
 def write_json(json_obj, file_name):
     with open(file_name, "w", encoding="utf-8") as f:
-        json.dump(json_obj, f, indent=2, ensure_ascii=False)
+        json5.dump(json_obj, f, indent=2, ensure_ascii=False)
 
 
 def load_json(file_name):
     if not os.path.exists(file_name):
         return None
     with open(file_name, encoding="utf-8") as f:
-        return json.load(f)
+        return json5.load(f)
 
 
 # it's dirty to type, so it's a good way to have fun

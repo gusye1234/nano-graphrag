@@ -1,5 +1,5 @@
 import html
-import json
+import json5
 import os
 from collections import defaultdict
 from dataclasses import dataclass
@@ -184,7 +184,7 @@ class NetworkXStorage(BaseGraphStorage):
         for node_id, node_data in self._graph.nodes(data=True):
             if "clusters" not in node_data:
                 continue
-            clusters = json.loads(node_data["clusters"])
+            clusters = json5.loads(node_data["clusters"])
             this_node_edges = self._graph.edges(node_id)
 
             for cluster in clusters:
@@ -225,7 +225,7 @@ class NetworkXStorage(BaseGraphStorage):
 
     def _cluster_data_to_subgraphs(self, cluster_data: dict[str, list[dict[str, str]]]):
         for node_id, clusters in cluster_data.items():
-            self._graph.nodes[node_id]["clusters"] = json.dumps(clusters)
+            self._graph.nodes[node_id]["clusters"] = json5.dumps(clusters)
 
     async def _leiden_clustering(self):
         from graspologic.partition import hierarchical_leiden
