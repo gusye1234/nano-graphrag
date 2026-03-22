@@ -2,6 +2,7 @@ import json
 import numpy as np
 from typing import Optional, List, Any, Callable
 
+import aiohttp
 import aioboto3
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
 
@@ -19,6 +20,7 @@ from .base import BaseKVStorage
 global_openai_async_client = None
 global_azure_openai_async_client = None
 global_amazon_bedrock_async_client = None
+global_minimax_async_client = None
 
 
 def get_openai_async_client_instance():
@@ -292,3 +294,98 @@ async def azure_openai_embedding(texts: list[str]) -> np.ndarray:
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )
     return np.array([dp.embedding for dp in response.data])
+
+
+# MiniMax -------------------------------------------------------------------
+
+def get_minimax_async_client_instance():
+    global global_minimax_async_client
+    if global_minimax_async_client is None:
+        global_minimax_async_client = AsyncOpenAI(
+            api_key=os.environ.get("MINIMAX_API_KEY", ""),
+            base_url="https://api.minimax.io/v1",
+        )
+    return global_minimax_async_client
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError)),
+)
+async def minimax_complete_if_cache(
+    model, prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    minimax_async_client = get_minimax_async_client_instance()
+    hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": prompt})
+    if hashing_kv is not None:
+        args_hash = compute_args_hash(model, messages)
+        if_cache_return = await hashing_kv.get_by_id(args_hash)
+        if if_cache_return is not None:
+            return if_cache_return["return"]
+
+    response = await minimax_async_client.chat.completions.create(
+        model=model, messages=messages, **kwargs
+    )
+
+    result = response.choices[0].message.content
+    if hashing_kv is not None:
+        await hashing_kv.upsert(
+            {args_hash: {"return": result, "model": model}}
+        )
+        await hashing_kv.index_done_callback()
+    return result
+
+
+async def minimax_m2_7_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    return await minimax_complete_if_cache(
+        "MiniMax-M2.7",
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
+
+
+async def minimax_m2_5_highspeed_complete(
+    prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    return await minimax_complete_if_cache(
+        "MiniMax-M2.5-highspeed",
+        prompt,
+        system_prompt=system_prompt,
+        history_messages=history_messages,
+        **kwargs,
+    )
+
+
+@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((aiohttp.ClientError,)),
+)
+async def minimax_embedding(texts: list[str]) -> np.ndarray:
+    api_key = os.environ.get("MINIMAX_API_KEY", "")
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            "https://api.minimax.io/v1/embeddings",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"model": "embo-01", "texts": texts, "type": "db"},
+        ) as resp:
+            data = await resp.json()
+            if data.get("base_resp", {}).get("status_code", 0) != 0:
+                raise Exception(
+                    f"MiniMax embedding error: {data.get('base_resp', {}).get('status_msg', 'unknown')}"
+                )
+            return np.array(data["vectors"])
