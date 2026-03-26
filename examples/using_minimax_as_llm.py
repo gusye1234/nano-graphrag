@@ -1,7 +1,7 @@
 import os
 import logging
 from nano_graphrag import GraphRAG, QueryParam
-from nano_graphrag._llm import minimax_m2_7_complete, minimax_m2_5_highspeed_complete, minimax_embedding
+from nano_graphrag._llm import minimax_m2_7_complete, minimax_m2_5_highspeed_complete
 
 logging.basicConfig(level=logging.WARNING)
 logging.getLogger("nano-graphrag").setLevel(logging.INFO)
@@ -35,8 +35,6 @@ def insert():
         # Use MiniMax-M2.7 as the main model and M2.5-highspeed as the cheap model
         best_model_func=minimax_m2_7_complete,
         cheap_model_func=minimax_m2_5_highspeed_complete,
-        # Use MiniMax embo-01 for embeddings (1536 dimensions)
-        embedding_func=minimax_embedding,
     )
     start = time()
     rag.insert(FAKE_TEXT)
@@ -48,7 +46,6 @@ def query():
         working_dir=WORKING_DIR,
         best_model_func=minimax_m2_7_complete,
         cheap_model_func=minimax_m2_5_highspeed_complete,
-        embedding_func=minimax_embedding,
     )
     print(
         rag.query(

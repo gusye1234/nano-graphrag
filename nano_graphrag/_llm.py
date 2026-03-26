@@ -2,7 +2,6 @@ import json
 import numpy as np
 from typing import Optional, List, Any, Callable
 
-import aiohttp
 import aioboto3
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
 
@@ -364,28 +363,3 @@ async def minimax_m2_5_highspeed_complete(
         history_messages=history_messages,
         **kwargs,
     )
-
-
-@wrap_embedding_func_with_attrs(embedding_dim=1536, max_token_size=8192)
-@retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=10),
-    retry=retry_if_exception_type((aiohttp.ClientError,)),
-)
-async def minimax_embedding(texts: list[str]) -> np.ndarray:
-    api_key = os.environ.get("MINIMAX_API_KEY", "")
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            "https://api.minimax.io/v1/embeddings",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={"model": "embo-01", "texts": texts, "type": "db"},
-        ) as resp:
-            data = await resp.json()
-            if data.get("base_resp", {}).get("status_code", 0) != 0:
-                raise Exception(
-                    f"MiniMax embedding error: {data.get('base_resp', {}).get('status_msg', 'unknown')}"
-                )
-            return np.array(data["vectors"])

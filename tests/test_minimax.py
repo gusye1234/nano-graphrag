@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, Mock, patch
 from nano_graphrag import _llm
 
 
@@ -195,60 +195,6 @@ async def test_minimax_m2_5_highspeed_complete(mock_minimax_client):
 
 
 # ---------------------------------------------------------------------------
-# Embedding
-# ---------------------------------------------------------------------------
-
-def _make_aiohttp_mock(json_data):
-    """Helper to create properly nested aiohttp session/response mocks."""
-    mock_resp = MagicMock()
-    mock_resp.json = AsyncMock(return_value=json_data)
-
-    # session.post() returns an async context manager
-    mock_post_cm = MagicMock()
-    mock_post_cm.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_post_cm.__aexit__ = AsyncMock(return_value=False)
-
-    mock_session = MagicMock()
-    mock_session.post.return_value = mock_post_cm
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-    return mock_session
-
-
-@pytest.mark.asyncio
-async def test_minimax_embedding():
-    mock_session = _make_aiohttp_mock({
-        "vectors": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
-        "total_tokens": 10,
-        "base_resp": {"status_code": 0, "status_msg": "success"},
-    })
-
-    with patch("nano_graphrag._llm.aiohttp.ClientSession", return_value=mock_session):
-        result = await _llm.minimax_embedding(["hello", "world"])
-
-    assert isinstance(result, np.ndarray)
-    assert result.shape == (2, 3)
-    np.testing.assert_allclose(result, np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]))
-
-
-@pytest.mark.asyncio
-async def test_minimax_embedding_error():
-    mock_session = _make_aiohttp_mock({
-        "base_resp": {"status_code": 1001, "status_msg": "invalid api key"},
-    })
-
-    with patch("nano_graphrag._llm.aiohttp.ClientSession", return_value=mock_session):
-        with pytest.raises(Exception, match="MiniMax embedding error"):
-            await _llm.minimax_embedding(["test"])
-
-
-@pytest.mark.asyncio
-async def test_minimax_embedding_attributes():
-    assert _llm.minimax_embedding.embedding_dim == 1536
-    assert _llm.minimax_embedding.max_token_size == 8192
-
-
-# ---------------------------------------------------------------------------
 # Integration tests (require MINIMAX_API_KEY, skipped by default)
 # ---------------------------------------------------------------------------
 
@@ -275,17 +221,4 @@ async def test_integration_minimax_m2_5_highspeed_complete():
         "What is 2+2? Answer with just the number."
     )
     assert "4" in result
-    _llm.global_minimax_async_client = None
-
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(
-    not __import__("os").environ.get("MINIMAX_API_KEY"),
-    reason="MINIMAX_API_KEY not set",
-)
-async def test_integration_minimax_embedding():
-    _llm.global_minimax_async_client = None
-    result = await _llm.minimax_embedding(["hello world"])
-    assert isinstance(result, np.ndarray)
-    assert result.shape == (1, 1536)
     _llm.global_minimax_async_client = None
