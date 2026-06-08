@@ -10,3 +10,4 @@ tenacity
 dspy-ai
 neo4j
 aioboto3
+litellm
