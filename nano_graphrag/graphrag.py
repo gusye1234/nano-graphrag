@@ -10,6 +10,8 @@ from typing import Callable, Dict, List, Optional, Type, Union, cast
 from ._llm import (
     amazon_bedrock_embedding,
     create_amazon_bedrock_complete_function,
+    create_litellm_complete_function,
+    create_litellm_embedding_function,
     gpt_4o_complete,
     gpt_4o_mini_complete,
     openai_embedding,
@@ -113,8 +115,14 @@ class GraphRAG:
     # LLM
     using_azure_openai: bool = False
     using_amazon_bedrock: bool = False
+    using_litellm: bool = False
     best_model_id: str = "us.anthropic.claude-3-sonnet-20240229-v1:0"
     cheap_model_id: str = "us.anthropic.claude-3-haiku-20240307-v1:0"
+    litellm_best_model_id: str = "openai/gpt-4o"
+    litellm_cheap_model_id: str = "openai/gpt-4o-mini"
+    litellm_embedding_model: str = "openai/text-embedding-3-small"
+    litellm_embedding_dim: int = 1536
+    litellm_extra_kwargs: dict = field(default_factory=dict)
     best_model_func: callable = gpt_4o_complete
     best_model_max_token_size: int = 32768
     best_model_max_async: int = 16
@@ -164,6 +172,22 @@ class GraphRAG:
             self.embedding_func = amazon_bedrock_embedding
             logger.info(
                 "Switched the default openai funcs to Amazon Bedrock"
+            )
+
+        if self.using_litellm:
+            self.best_model_func = create_litellm_complete_function(
+                self.litellm_best_model_id, **self.litellm_extra_kwargs
+            )
+            self.cheap_model_func = create_litellm_complete_function(
+                self.litellm_cheap_model_id, **self.litellm_extra_kwargs
+            )
+            self.embedding_func = create_litellm_embedding_function(
+                model=self.litellm_embedding_model,
+                embedding_dim=self.litellm_embedding_dim,
+                **self.litellm_extra_kwargs,
+            )
+            logger.info(
+                "Switched the default openai funcs to LiteLLM"
             )
 
         if not os.path.exists(self.working_dir) and self.always_create_working_dir:

@@ -3,6 +3,7 @@ import numpy as np
 from typing import Optional, List, Any, Callable
 
 import aioboto3
+import litellm
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
 
 from tenacity import (
@@ -13,7 +14,7 @@ from tenacity import (
 )
 import os
 
-from ._utils import compute_args_hash, wrap_embedding_func_with_attrs
+from ._utils import EmbeddingFunc, compute_args_hash, wrap_embedding_func_with_attrs
 from .base import BaseKVStorage
 
 global_openai_async_client = None
@@ -292,3 +293,93 @@ async def azure_openai_embedding(texts: list[str]) -> np.ndarray:
         model="text-embedding-3-small", input=texts, encoding_format="float"
     )
     return np.array([dp.embedding for dp in response.data])
+
+
+# ---------------------------------------------------------------------------
+# LiteLLM  (100+ LLM providers via a single interface)
+# ---------------------------------------------------------------------------
+
+litellm_retry_decorator = retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((
+        litellm.exceptions.RateLimitError,
+        litellm.exceptions.APIConnectionError,
+        litellm.exceptions.Timeout,
+        litellm.exceptions.InternalServerError,
+        litellm.exceptions.ServiceUnavailableError,
+    )),
+)
+
+
+@litellm_retry_decorator
+async def litellm_complete_if_cache(
+    model, prompt, system_prompt=None, history_messages=[], **kwargs
+) -> str:
+    hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": prompt})
+
+    if hashing_kv is not None:
+        args_hash = compute_args_hash(model, messages)
+        if_cache_return = await hashing_kv.get_by_id(args_hash)
+        if if_cache_return is not None:
+            return if_cache_return["return"]
+
+    kwargs.setdefault("drop_params", True)
+    response = await litellm.acompletion(model=model, messages=messages, **kwargs)
+
+    if hashing_kv is not None:
+        await hashing_kv.upsert(
+            {args_hash: {"return": response.choices[0].message.content, "model": model}}
+        )
+        await hashing_kv.index_done_callback()
+    return response.choices[0].message.content
+
+
+def create_litellm_complete_function(model_id: str, **extra_kwargs) -> Callable:
+    """Factory that returns an async completion function bound to *model_id*.
+
+    Any additional keyword arguments (e.g. ``api_key``, ``api_base``) are
+    forwarded to every ``litellm.acompletion`` call.
+    """
+
+    async def litellm_complete(
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        history_messages: List[Any] = [],
+        **kwargs,
+    ) -> str:
+        kwargs.update(extra_kwargs)
+        return await litellm_complete_if_cache(
+            model_id,
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            **kwargs,
+        )
+
+    litellm_complete.__name__ = f"litellm_{model_id}_complete"
+    return litellm_complete
+
+
+def create_litellm_embedding_function(
+    model: str = "openai/text-embedding-3-small",
+    embedding_dim: int = 1536,
+    max_token_size: int = 8192,
+    **extra_kwargs,
+) -> EmbeddingFunc:
+    """Factory that returns an embedding function backed by litellm.aembedding."""
+
+    @wrap_embedding_func_with_attrs(
+        embedding_dim=embedding_dim, max_token_size=max_token_size
+    )
+    @litellm_retry_decorator
+    async def litellm_embedding(texts: list[str]) -> np.ndarray:
+        response = await litellm.aembedding(model=model, input=texts, **extra_kwargs)
+        return np.array([dp["embedding"] for dp in response.data])
+
+    return litellm_embedding
