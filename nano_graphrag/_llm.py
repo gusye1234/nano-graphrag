@@ -3,11 +3,11 @@ import numpy as np
 from typing import Optional, List, Any, Callable
 
 import aioboto3
+import litellm
 from openai import AsyncOpenAI, AsyncAzureOpenAI, APIConnectionError, RateLimitError
 
 from tenacity import (
     retry,
-    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
     retry_if_exception_type,
@@ -299,38 +299,23 @@ async def azure_openai_embedding(texts: list[str]) -> np.ndarray:
 # LiteLLM  (100+ LLM providers via a single interface)
 # ---------------------------------------------------------------------------
 
-def litellm_retry_decorator(func):
-    """Tenacity retry using qualname checks so the module still imports
-    when litellm is not installed."""
-
-    def is_transient(exc: BaseException) -> bool:
-        qn = f"{type(exc).__module__}.{type(exc).__qualname__}"
-        return qn in {
-            "litellm.exceptions.RateLimitError",
-            "litellm.exceptions.APIConnectionError",
-            "litellm.exceptions.Timeout",
-            "litellm.exceptions.InternalServerError",
-            "litellm.exceptions.ServiceUnavailableError",
-        }
-
-    return retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception(is_transient),
-    )(func)
+litellm_retry_decorator = retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((
+        litellm.exceptions.RateLimitError,
+        litellm.exceptions.APIConnectionError,
+        litellm.exceptions.Timeout,
+        litellm.exceptions.InternalServerError,
+        litellm.exceptions.ServiceUnavailableError,
+    )),
+)
 
 
 @litellm_retry_decorator
 async def litellm_complete_if_cache(
     model, prompt, system_prompt=None, history_messages=[], **kwargs
 ) -> str:
-    try:
-        import litellm
-    except ImportError:
-        raise ImportError(
-            "The 'litellm' package is required. Install it with: pip install litellm"
-        )
-
     hashing_kv: BaseKVStorage = kwargs.pop("hashing_kv", None)
     messages = []
     if system_prompt:
@@ -394,13 +379,6 @@ def create_litellm_embedding_function(
     )
     @litellm_retry_decorator
     async def litellm_embedding(texts: list[str]) -> np.ndarray:
-        try:
-            import litellm
-        except ImportError:
-            raise ImportError(
-                "The 'litellm' package is required. Install it with: pip install litellm"
-            )
-
         response = await litellm.aembedding(model=model, input=texts, **extra_kwargs)
         return np.array([dp["embedding"] for dp in response.data])
 
